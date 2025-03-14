@@ -1,6 +1,4 @@
 import json
-import os
-import sys
 
 def handler(request, response):
     # Set CORS headers
@@ -12,14 +10,12 @@ def handler(request, response):
     if request.method == "OPTIONS":
         return response
     
-    # Handle GET request for root
+    # Handle GET request for test
     if request.method == "GET":
         # Create response
         data = {
             "status": "ok",
-            "message": "Simple API is running",
-            "environment": os.getenv("VERCEL_ENV", "development"),
-            "python_version": sys.version
+            "message": "Test endpoint is working correctly"
         }
         
         # Send response

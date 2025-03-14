@@ -1,15 +1,19 @@
 {
   "version": 2,
+  "rewrites": [
+    { "source": "/api", "destination": "/api/index.py" },
+    { "source": "/api/test", "destination": "/api/test.py" },
+    { "source": "/api/chat", "destination": "/api/chat.py" }
+  ],
   "builds": [
     { "src": "frontend/**", "use": "@vercel/static" },
-    { "src": "app/api/index.py", "use": "@vercel/python" },
+    { "src": "app/api/*.py", "use": "@vercel/python" },
     { "src": "app/api/test.html", "use": "@vercel/static" },
     { "src": "app/api/simple_test.html", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/test.html", "dest": "app/api/test.html" },
     { "src": "/api/simple_test.html", "dest": "app/api/simple_test.html" },
-    { "src": "/api/(.*)", "dest": "app/api/index.py" },
     { "src": "/(.*)", "dest": "frontend/$1" }
   ]
 } 
