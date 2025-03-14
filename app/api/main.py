@@ -10,15 +10,30 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import glob
 import time
-
-from app.deepseek.wrapper import DeepSeekWrapper
-from app.agent.agent import DeepSeekAgent, AgentResponse, ACTIVE_REQUESTS
-from app.agent.tools import AVAILABLE_TOOLS
-from app.cache.redis import RedisClient
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("api")
+
+# Print debug information
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Current directory: {os.getcwd()}")
+logger.info(f"Python path: {sys.path}")
+logger.info(f"Environment variables: {list(os.environ.keys())}")
+
+try:
+    from app.deepseek.wrapper import DeepSeekWrapper
+    from app.agent.agent import DeepSeekAgent, AgentResponse, ACTIVE_REQUESTS
+    from app.agent.tools import AVAILABLE_TOOLS
+    from app.cache.redis import RedisClient
+    from app.api.test_endpoint import include_test_router
+    
+    logger.info("Successfully imported all modules")
+except Exception as e:
+    logger.error(f"Error importing modules: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 app = FastAPI(
     title="DeepSeek AI Agent API",
@@ -26,7 +41,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Configure CORS
+# Configure CORS - allow all origins for deployment
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for development
@@ -35,6 +50,34 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# Include test endpoints
+try:
+    include_test_router(app)
+    logger.info("Test endpoints registered successfully")
+except Exception as e:
+    logger.error(f"Error registering test endpoints: {str(e)}")
+
+# Add a simple root endpoint for health checks
+@app.get("/")
+async def root():
+    """Root endpoint for health check."""
+    try:
+        api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        mock_mode = not api_key or api_key.lower() in ("", "your_api_key_here", "none", "test")
+        
+        return {
+            "status": "ok", 
+            "message": "DeepSeek Agent API is running", 
+            "mock_mode": mock_mode,
+            "environment": os.getenv("VERCEL_ENV", "development"),
+            "python_version": sys.version
+        }
+    except Exception as e:
+        logger.error(f"Error in root endpoint: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 # Models for request/response
 class ChatRequest(BaseModel):
@@ -138,19 +181,6 @@ async def get_agent(redis_client: Optional[RedisClient] = Depends(get_redis_clie
     )
     
     return agent
-
-
-@app.get("/")
-async def root():
-    """Root endpoint for health check."""
-    api_key = os.getenv("DEEPSEEK_API_KEY", "")
-    mock_mode = not api_key or api_key.lower() in ("", "your_api_key_here", "none", "test")
-    
-    return {
-        "status": "ok", 
-        "message": "DeepSeek Agent API is running", 
-        "mock_mode": mock_mode
-    }
 
 
 @app.get("/brand-briefs")
