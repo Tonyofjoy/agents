@@ -237,7 +237,7 @@ async function sendMessage() {
         
         // Send request to API with timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
         
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
@@ -256,6 +256,27 @@ async function sendMessage() {
         
         // Clear request timeout
         clearRequestTimeout();
+        
+        // Handle timeout (504) responses gracefully
+        if (response.status === 504) {
+            console.log("Server timeout, using fallback response");
+            
+            // Add a system message about the timeout
+            addMessage('system', currentLanguage === 'en' ? 
+                'The server took too long to respond. Here\'s a simple response instead:' : 
+                'Máy chủ mất quá nhiều thời gian để phản hồi. Đây là phản hồi đơn giản thay thế:');
+            
+            // Create a fallback response
+            const fallbackResponse = currentLanguage === 'en' ? 
+                `I understand you're asking about "${messageText}". This is an important topic for businesses. Please try asking a more specific question for a better response.` :
+                `Tôi hiểu bạn đang hỏi về "${messageText}". Đây là một chủ đề quan trọng cho doanh nghiệp. Vui lòng thử hỏi câu hỏi cụ thể hơn để có phản hồi tốt hơn.`;
+            
+            // Add the fallback response as an agent message
+            addMessage('agent', fallbackResponse);
+            
+            // Early return to avoid processing the response
+            return;
+        }
         
         // Get the response text first, regardless of status code
         const responseText = await response.text();
@@ -305,15 +326,15 @@ async function sendMessage() {
         
     } catch (error) {
         console.error('Error sending message:', error);
-        addMessage('error', `Error: ${error.message}`);
         
-        // Add more detailed error information to the chat
-        if (error.message.includes('API error')) {
-            addMessage('system', 'There was a problem with the API. Please try again later or check the console for more details.');
-        } else if (error.message.includes('Invalid JSON')) {
-            addMessage('system', 'The server returned an invalid response. Please try again later or check the console for more details.');
+        // Handle abort/timeout errors specifically
+        if (error.name === 'AbortError') {
+            addMessage('system', currentLanguage === 'en' ? 
+                'The request was cancelled because it took too long. Please try a shorter message or try again later.' : 
+                'Yêu cầu đã bị hủy vì mất quá nhiều thời gian. Vui lòng thử tin nhắn ngắn hơn hoặc thử lại sau.');
         } else {
-            addMessage('system', 'There was a network error. Please check your connection and try again.');
+            // Handle other errors
+            addMessage('error', `Error: ${error.message}`);
         }
         
         removeCancelButton();
@@ -597,7 +618,24 @@ async function generateContent() {
         // Hide the template form
         hideTemplateForm();
         
-        // Send request to API
+        // Send request to API with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+        
+        // Create timeout message
+        const timeoutMessage = document.createElement('div');
+        timeoutMessage.classList.add('timeout-warning');
+        timeoutMessage.textContent = currentLanguage === 'en' ? 
+            'Generating content. This might take a moment...' : 
+            'Đang tạo nội dung. Điều này có thể mất một lúc...';
+        
+        // Add timeout message after 5 seconds if still loading
+        const messageTimeoutId = setTimeout(() => {
+            if (typingMessage.parentElement) {
+                typingMessage.parentElement.insertBefore(timeoutMessage, typingMessage);
+            }
+        }, 5000);
+        
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
             headers: {
@@ -606,13 +644,42 @@ async function generateContent() {
             body: JSON.stringify({
                 prompt,
                 session_id: sessionId
-            })
+            }),
+            signal: controller.signal
+        }).finally(() => {
+            clearTimeout(timeoutId);
+            clearTimeout(messageTimeoutId);
         });
         
-        // Remove typing indicator
+        // Remove typing indicator and timeout message
         typingMessage.remove();
+        if (timeoutMessage.parentElement) {
+            timeoutMessage.remove();
+        }
         
         if (!response.ok) {
+            // If it's a server timeout (504), add a more user-friendly message
+            if (response.status === 504) {
+                addMessage('system', currentLanguage === 'en' ? 
+                    'The content generation request timed out. I\'ll create a simpler response for you.' : 
+                    'Yêu cầu tạo nội dung đã hết thời gian. Tôi sẽ tạo một phản hồi đơn giản hơn cho bạn.');
+                
+                // Generate fallback content
+                let fallbackContent = `# ${topic.charAt(0).toUpperCase() + topic.slice(1)}: ${currentLanguage === 'en' ? 'Business Insights' : 'Hiểu biết về kinh doanh'}\n\n`;
+                fallbackContent += currentLanguage === 'en' ?
+                    `Here's a brief overview of ${topic} for your ${templateType.replace('_', ' ')}:\n\n` :
+                    `Đây là tổng quan ngắn gọn về ${topic} cho ${templateType.replace('_', ' ')} của bạn:\n\n`;
+                
+                fallbackContent += currentLanguage === 'en' ?
+                    `${topic} is transforming how businesses operate in today's digital landscape. Organizations that effectively leverage this technology gain significant advantages through improved efficiency, better customer experiences, and innovative business models.\n\n` :
+                    `${topic} đang thay đổi cách các doanh nghiệp hoạt động trong bối cảnh kỹ thuật số ngày nay. Các tổ chức tận dụng hiệu quả công nghệ này đạt được lợi thế đáng kể thông qua hiệu quả được cải thiện, trải nghiệm khách hàng tốt hơn và các mô hình kinh doanh sáng tạo.\n\n`;
+                
+                fallbackContent += "Tony Tech Insights | " + (currentLanguage === 'en' ? "Making Technology Accessible for Every Business" : "Làm cho Công nghệ Tiếp cận với Mọi Doanh nghiệp");
+                
+                addMessage('agent', fallbackContent);
+                return;
+            }
+            
             throw new Error(`API error: ${response.status}`);
         }
         
@@ -630,7 +697,19 @@ async function generateContent() {
         
     } catch (error) {
         console.error('Error generating content:', error);
-        addMessage('error', `Error: ${error.message}`);
+        
+        if (error.name === 'AbortError') {
+            // Handle timeout/abort error specifically
+            addMessage('system', currentLanguage === 'en' ? 
+                'The request took too long to complete. Please try again with a simpler request or try later when the server is less busy.' : 
+                'Yêu cầu mất quá nhiều thời gian để hoàn thành. Vui lòng thử lại với yêu cầu đơn giản hơn hoặc thử lại sau khi máy chủ ít bận rộn hơn.');
+        } else {
+            // Handle other errors
+            addMessage('error', `Error: ${error.message}`);
+            addMessage('system', currentLanguage === 'en' ?
+                'There was a problem generating your content. Please try again later.' :
+                'Đã xảy ra sự cố khi tạo nội dung của bạn. Vui lòng thử lại sau.');
+        }
     }
 }
 
