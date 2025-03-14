@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tony Tech Insights API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+        }
+        .endpoint {
+            background-color: #f5f5f5;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        .method {
+            font-weight: bold;
+            color: #0066cc;
+        }
+        pre {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tony Tech Insights API</h1>
+    <p>This is the API server for Tony Tech Insights. The following endpoints are available:</p>
+    
+    <div class="endpoint">
+        <p><span class="method">GET</span> /api/</p>
+        <p>Health check endpoint that returns the status of the API.</p>
+        <pre>
+{
+    "status": "ok",
+    "message": "Simple API is running",
+    "environment": "production",
+    "python_version": "3.9.x"
+}
+        </pre>
+    </div>
+    
+    <div class="endpoint">
+        <p><span class="method">GET</span> /api/test</p>
+        <p>Test endpoint to verify the API is working correctly.</p>
+        <pre>
+{
+    "status": "ok",
+    "message": "Test endpoint is working correctly"
+}
+        </pre>
+    </div>
+    
+    <div class="endpoint">
+        <p><span class="method">POST</span> /api/chat</p>
+        <p>Chat endpoint that accepts a prompt and returns a response.</p>
+        <p>Request body:</p>
+        <pre>
+{
+    "prompt": "Your message here",
+    "session_id": "optional-session-id"
+}
+        </pre>
+        <p>Response:</p>
+        <pre>
+{
+    "response": "AI response to your message",
+    "session_id": "session-id",
+    "tool_calls": [],
+    "request_id": "request-id"
+}
+        </pre>
+    </div>
+    
+    <p>For more information, please contact the administrator.</p>
+</body>
+</html> 

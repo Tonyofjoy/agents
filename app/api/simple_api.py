@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import os
 import sys
 import json
@@ -11,7 +12,7 @@ app = FastAPI(
     description="A simple API for testing",
 )
 
-# Configure CORS
+# Configure CORS - allow all origins explicitly
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,20 +24,20 @@ app.add_middleware(
 @app.get("/")
 async def root():
     """Root endpoint for health check."""
-    return {
+    return JSONResponse(content={
         "status": "ok",
         "message": "Simple API is running",
         "environment": os.getenv("VERCEL_ENV", "development"),
         "python_version": sys.version
-    }
+    })
 
 @app.get("/test")
 async def test():
     """Test endpoint."""
-    return {
+    return JSONResponse(content={
         "status": "ok",
         "message": "Test endpoint is working correctly"
-    }
+    })
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -48,14 +49,17 @@ async def chat(request: Request):
         session_id = body.get("session_id") or str(uuid.uuid4())
         
         # Create a mock response
-        return {
+        return JSONResponse(content={
             "response": f"This is a mock response to: '{prompt}'",
             "session_id": session_id,
             "tool_calls": [],
             "request_id": f"req_{uuid.uuid4().hex[:10]}"
-        }
+        })
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        } 
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": str(e)
+            }
+        ) 

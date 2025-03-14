@@ -1,7 +1,7 @@
 // Configuration
 const API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8000' 
-    : `${window.location.protocol}//${window.location.host}/api`;
+    : 'https://agents-ten-tau.vercel.app/api';
 let sessionId = null;
 let isSending = false;
 let currentLanguage = 'en'; // Default language
