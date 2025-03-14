@@ -8,6 +8,10 @@ let currentLanguage = 'en'; // Default language
 let currentRequestId = null; // Track the current request ID for cancellation
 let requestTimeoutId = null; // To track the timeout for long-running requests
 
+// Updated timeouts
+const FETCH_TIMEOUT = 40000; // 40 seconds timeout for fetch requests
+const USER_FEEDBACK_TIMEOUT = 15000; // 15 seconds before showing "taking longer than expected" message
+
 // DOM Elements - Chat
 const chatHistory = document.getElementById('chat-history');
 const userInput = document.getElementById('user-input');
@@ -235,9 +239,9 @@ async function sendMessage() {
         
         console.log("Request payload:", payload);
         
-        // Send request to API with timeout
+        // Send request to API with increased timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT); // Increased from 25s to 40s
         
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
@@ -309,6 +313,19 @@ async function sendMessage() {
         }
         
         console.log("Parsed response data:", data);
+        
+        // Check if using fallback and notify user if appropriate
+        if (data._using_fallback || data.using_deepseek === false) {
+            console.log("Using fallback response mechanism");
+            if (data._error) {
+                console.error("Original error:", data._error);
+            }
+            
+            // Only add system message for non-Vietnamese content as it might be confusing
+            if (currentLanguage === 'en' && !messageText.includes('Vietnamese')) {
+                addMessage('system', "Note: I'm providing a simplified response due to technical limitations. For better results, try a more specific question.");
+            }
+        }
         
         // Update session ID and current request ID
         sessionId = data.session_id;
@@ -416,7 +433,7 @@ function setupRequestTimeout(timeoutMs) {
     // Clear any existing timeout
     clearRequestTimeout();
     
-    // Set a short timeout for first warning (30 seconds)
+    // Set a short timeout for first warning
     requestTimeoutId = setTimeout(() => {
         if (isSending && currentRequestId) {
             // Add a message to let the user know the request is taking a while
@@ -424,8 +441,8 @@ function setupRequestTimeout(timeoutMs) {
             timeoutWarning.classList.add('timeout-warning');
             timeoutWarning.id = 'timeout-warning';
             timeoutWarning.textContent = currentLanguage === 'en' ? 
-                'This request is taking longer than expected. You can cancel it or continue waiting.' : 
-                'Yêu cầu này đang mất nhiều thời gian hơn dự kiến. Bạn có thể hủy hoặc tiếp tục chờ đợi.';
+                'I\'m working on a thoughtful response. This might take a moment...' : 
+                'Tôi đang làm việc trên một phản hồi có chiều sâu. Việc này có thể mất một chút thời gian...';
             
             // Add to the chat just before the typing indicator
             const typingIndicator = document.querySelector('.typing-indicator');
@@ -433,23 +450,23 @@ function setupRequestTimeout(timeoutMs) {
                 typingIndicator.parentElement.insertBefore(timeoutWarning, typingIndicator);
             }
             
-            // Set a longer timeout for follow-up warning (90 seconds)
+            // Set a longer timeout for follow-up warning (45 seconds)
             setTimeout(() => {
                 if (isSending && currentRequestId) {
                     // Update the warning
                     const existingWarning = document.getElementById('timeout-warning');
                     if (existingWarning) {
                         existingWarning.textContent = currentLanguage === 'en' ? 
-                            'This request is taking a very long time. It might be stuck. Consider cancelling and trying again with a simpler query.' : 
-                            'Yêu cầu này đang mất rất nhiều thời gian. Nó có thể bị treo. Hãy xem xét hủy và thử lại với một yêu cầu đơn giản hơn.';
-                        existingWarning.style.backgroundColor = '#ffebee';
-                        existingWarning.style.color = '#c62828';
-                        existingWarning.style.borderColor = '#ffcdd2';
+                            'This request is taking longer than expected. You can cancel and try a simpler query, or continue waiting for a detailed response.' : 
+                            'Yêu cầu này đang mất nhiều thời gian hơn dự kiến. Bạn có thể hủy và thử một yêu cầu đơn giản hơn, hoặc tiếp tục chờ để nhận phản hồi chi tiết.';
+                        existingWarning.style.backgroundColor = '#fff8e1';
+                        existingWarning.style.color = '#856404';
+                        existingWarning.style.borderColor = '#ffeeba';
                     }
                 }
-            }, 60000); // 60 seconds after first warning (90 seconds total)
+            }, 30000); // 30 seconds after first warning (45 seconds total)
         }
-    }, 30000); // 30 seconds
+    }, USER_FEEDBACK_TIMEOUT); // Show first message after 15 seconds (reduced from 30)
 }
 
 function clearRequestTimeout() {
@@ -618,23 +635,30 @@ async function generateContent() {
         // Hide the template form
         hideTemplateForm();
         
-        // Send request to API with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds timeout
+        // Add cancel button
+        const cancelButton = addCancelButton();
+        cancelButton.addEventListener('click', handleRequestCancel);
         
-        // Create timeout message
+        // Set up request timeout monitoring with feedback for templates
+        setupRequestTimeout(180000); // 3 minutes timeout for templates since they're more complex
+        
+        // Create timeout message immediately for templates since we know they'll take time
         const timeoutMessage = document.createElement('div');
         timeoutMessage.classList.add('timeout-warning');
         timeoutMessage.textContent = currentLanguage === 'en' ? 
-            'Generating content. This might take a moment...' : 
-            'Đang tạo nội dung. Điều này có thể mất một lúc...';
+            'Generating creative content. This typically takes 20-45 seconds for quality results...' : 
+            'Đang tạo nội dung sáng tạo. Điều này thường mất 20-45 giây để có kết quả chất lượng...';
         
-        // Add timeout message after 5 seconds if still loading
+        // Add timeout message after 2 seconds for templates
         const messageTimeoutId = setTimeout(() => {
             if (typingMessage.parentElement) {
                 typingMessage.parentElement.insertBefore(timeoutMessage, typingMessage);
             }
-        }, 5000);
+        }, 2000);
+        
+        // Send request to API with increased timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT); // 40 seconds timeout (increased from 25s)
         
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
@@ -656,6 +680,12 @@ async function generateContent() {
         if (timeoutMessage.parentElement) {
             timeoutMessage.remove();
         }
+        
+        // Remove cancel button
+        removeCancelButton();
+        
+        // Clear request timeout
+        clearRequestTimeout();
         
         if (!response.ok) {
             // If it's a server timeout (504), add a more user-friendly message
@@ -683,7 +713,25 @@ async function generateContent() {
             throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        // Get the response text first, regardless of status code
+        const responseText = await response.text();
+        console.log("Raw template response:", responseText);
+        
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error("Error parsing JSON response:", e);
+            throw new Error(`Invalid JSON response from server: ${responseText.substring(0, 100)}`);
+        }
+        
+        console.log("Parsed template response data:", data);
+        
+        // Check if using fallback
+        if (data._using_fallback || data.using_deepseek === false) {
+            console.log("Using fallback response for template");
+            // No need to notify user since templates are expected to be simplified sometimes
+        }
         
         // Add agent response
         addMessage('agent', data.response);
@@ -710,6 +758,13 @@ async function generateContent() {
                 'There was a problem generating your content. Please try again later.' :
                 'Đã xảy ra sự cố khi tạo nội dung của bạn. Vui lòng thử lại sau.');
         }
+    } finally {
+        removeCancelButton();
+        clearRequestTimeout();
+        isSending = false;
+        sendButton.disabled = false;
+        currentRequestId = null;
+        scrollToBottom();
     }
 }
 

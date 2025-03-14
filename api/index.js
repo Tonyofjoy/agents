@@ -5,10 +5,11 @@ import fetch from 'node-fetch';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-3f0cb6792ec6407fab97b3493a8143bf';
 const DEEPSEEK_API_BASE = process.env.DEEPSEEK_API_BASE || 'https://api.deepseek.com/v1';
 
-// Set timeouts
-const API_TIMEOUT = 9000; // 9 seconds (allowing for Vercel's 10s limit)
+// Set timeouts - increase to accommodate complex responses
+const API_TIMEOUT = 25000; // 25 seconds (increased from 9 seconds)
 
 export default async function handler(req, res) {
+  // Configure CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -18,6 +19,9 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   
+  // Log request information for debugging
+  console.log(`Received ${req.method} request to ${req.url}`);
+  
   // Handle GET request to root endpoint
   if (req.method === 'GET') {
     return res.status(200).json({
@@ -25,7 +29,8 @@ export default async function handler(req, res) {
       message: 'Tony Tech Insights API is running',
       environment: process.env.VERCEL_ENV || 'development',
       deepseek_connected: true,
-      version: '1.0.0',
+      deepseek_api_key_length: DEEPSEEK_API_KEY ? DEEPSEEK_API_KEY.length : 0,
+      version: '1.0.1',
       timestamp: Date.now()
     });
   }
@@ -42,6 +47,9 @@ export default async function handler(req, res) {
           console.error('Error parsing request body:', e);
         }
       }
+      
+      // Log the received body for debugging
+      console.log('Received request body:', JSON.stringify(body, null, 2));
       
       const sessionId = body?.session_id || `session-${Math.random().toString(36).substring(2, 15)}`;
       const prompt = body?.prompt || '';
@@ -68,23 +76,40 @@ export default async function handler(req, res) {
         systemPrompt = `You are Tony Tech Insights' AI assistant. Provide concise, practical tech advice for businesses. Align with our brand: "Making Technology Accessible for Every Business".`;
       }
       
-      // Set up a timeout promise
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('DeepSeek API request timed out')), API_TIMEOUT)
-      );
+      console.log('Starting API call to DeepSeek...');
       
-      // Race between the API call and the timeout
-      const response = await Promise.race([
-        callDeepSeekAPI(prompt, systemPrompt),
-        timeoutPromise
-      ]);
-      
-      return res.status(200).json({
-        response: response,
-        session_id: sessionId,
-        tool_calls: [],
-        request_id: requestId
-      });
+      // Direct call to DeepSeek without timeout race
+      try {
+        const response = await callDeepSeekAPI(prompt, systemPrompt);
+        console.log('API call completed successfully');
+        
+        return res.status(200).json({
+          response: response,
+          session_id: sessionId,
+          tool_calls: [],
+          request_id: requestId,
+          using_deepseek: true
+        });
+      } catch (deepseekError) {
+        console.error('DeepSeek API error:', deepseekError);
+        
+        // Generate fallback response based on the type of request
+        let fallbackResponse;
+        if (isTemplateRequest) {
+          fallbackResponse = generateFallbackTemplateContent(prompt);
+        } else {
+          fallbackResponse = generateFallbackResponse(prompt);
+        }
+        
+        return res.status(200).json({
+          response: fallbackResponse,
+          session_id: sessionId,
+          tool_calls: [],
+          request_id: requestId,
+          using_deepseek: false,
+          _error: deepseekError.message
+        });
+      }
     } catch (error) {
       console.error('Error processing chat request:', error);
       
@@ -111,60 +136,93 @@ export default async function handler(req, res) {
 
 // Call DeepSeek API to generate a response
 async function callDeepSeekAPI(prompt, systemPrompt) {
-  try {
-    // Use a shorter version of DeepSeek if the prompt suggests it would be a long response
-    const model = prompt.length > 200 || 
-                 prompt.toLowerCase().includes('long') || 
-                 prompt.toLowerCase().includes('detailed') ? 
-                 'deepseek-chat' : 'deepseek-chat';
-                 
-    // Optimize settings to get faster responses
-    const settings = {
-      model: model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000, // Limit response length to avoid timeouts
-      timeout: API_TIMEOUT - 500 // Slightly shorter than our handler timeout
-    };
+  // Use a shorter version of DeepSeek if the prompt suggests it would be a long response
+  const model = 'deepseek-chat';
+  
+  // Vietnamese content detection - optimize settings for Vietnamese
+  const isVietnamese = 
+    prompt.includes('tiếng Việt') || 
+    prompt.includes('Vietnamese') ||
+    /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/.test(prompt);
+  
+  // Optimize settings to get better responses
+  const settings = {
+    model: model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.7,
+    max_tokens: isVietnamese ? 2000 : 1500, // Larger limit for Vietnamese content
+    timeout: API_TIMEOUT - 1000
+  };
+  
+  console.log('Calling DeepSeek API with settings:', JSON.stringify(settings));
+  
+  // Call DeepSeek API with abortable controller
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), API_TIMEOUT - 2000);
+  
+  // Make multiple retry attempts
+  let attempt = 0;
+  const maxAttempts = 2;
+  
+  while (attempt < maxAttempts) {
+    attempt++;
+    console.log(`DeepSeek API call attempt ${attempt} of ${maxAttempts}`);
     
-    console.log('Calling DeepSeek API with settings:', JSON.stringify(settings));
-    
-    // Call DeepSeek API with timeout
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), API_TIMEOUT - 1000);
-    
-    const response = await fetch(`${DEEPSEEK_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-      },
-      body: JSON.stringify(settings),
-      signal: controller.signal
-    });
-    
-    clearTimeout(id);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`DeepSeek API error: ${errorData.error?.message || response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error('Error calling DeepSeek API:', error);
-    
-    // Fallback responses if DeepSeek fails
-    if (prompt.toLowerCase().includes('generate a') && prompt.toLowerCase().includes('about')) {
-      return generateFallbackTemplateContent(prompt);
-    } else {
-      return generateFallbackResponse(prompt);
+    try {
+      const response = await fetch(`${DEEPSEEK_API_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+        },
+        body: JSON.stringify(settings),
+        signal: controller.signal
+      });
+      
+      clearTimeout(id);
+      
+      // Log the raw response 
+      console.log(`DeepSeek API response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`DeepSeek API error response: ${errorText}`);
+        
+        // Parse the error data if possible
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: { message: `Status ${response.status}: ${errorText}` } };
+        }
+        
+        throw new Error(`DeepSeek API error: ${errorData.error?.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('DeepSeek API response:', JSON.stringify(data, null, 2));
+      
+      // If we got here, we have a successful response
+      return data.choices[0].message.content;
+      
+    } catch (error) {
+      console.error(`DeepSeek API attempt ${attempt} failed:`, error);
+      
+      // If we've used all attempts, throw the error
+      if (attempt >= maxAttempts) {
+        throw error;
+      }
+      
+      // Otherwise wait briefly and try again
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
+  
+  // This should never be reached due to the throw in the loop above
+  throw new Error('All DeepSeek API attempts failed');
 }
 
 // Fallback template generation if DeepSeek API fails
@@ -183,23 +241,58 @@ function generateFallbackTemplateContent(prompt) {
   const topicMatch = prompt.match(/about "(.*?)"/);
   const topic = topicMatch ? topicMatch[1] : 'technology';
   
-  // Generate a simple response
-  return `Here's a ${contentType} about "${topic}" for Tony Tech Insights:\n\n` +
-    `# ${topic.charAt(0).toUpperCase() + topic.slice(1)}: Transforming Business in ${new Date().getFullYear()}\n\n` +
-    `In today's rapidly evolving technological landscape, ${topic} stands out as a critical factor for business success. ` +
-    `Organizations that effectively leverage ${topic} gain competitive advantages through improved efficiency, ` +
-    `enhanced customer experiences, and innovative business models.\n\n` +
-    `Tony Tech Insights | Making Technology Accessible for Every Business`;
+  // Check if Vietnamese content is requested
+  const isVietnamese = 
+    prompt.includes('tiếng Việt') || 
+    prompt.includes('Vietnamese') ||
+    prompt.endsWith('Vietnamese.') ||
+    /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/.test(prompt);
+  
+  if (isVietnamese) {
+    // Vietnamese fallback response
+    return `Đây là ${contentType} về "${topic}" cho Tony Tech Insights:\n\n` +
+      `# ${topic.charAt(0).toUpperCase() + topic.slice(1)}: Chuyển đổi Kinh doanh trong năm ${new Date().getFullYear()}\n\n` +
+      `Trong bối cảnh công nghệ phát triển nhanh chóng ngày nay, ${topic} nổi bật như một yếu tố quan trọng cho sự thành công trong kinh doanh. ` +
+      `Các tổ chức tận dụng hiệu quả ${topic} đạt được lợi thế cạnh tranh thông qua cải thiện hiệu suất, ` +
+      `nâng cao trải nghiệm khách hàng và các mô hình kinh doanh sáng tạo.\n\n` +
+      `Tony Tech Insights | Giúp Công nghệ Tiếp cận với Mọi Doanh nghiệp`;
+  } else {
+    // English fallback response  
+    return `Here's a ${contentType} about "${topic}" for Tony Tech Insights:\n\n` +
+      `# ${topic.charAt(0).toUpperCase() + topic.slice(1)}: Transforming Business in ${new Date().getFullYear()}\n\n` +
+      `In today's rapidly evolving technological landscape, ${topic} stands out as a critical factor for business success. ` +
+      `Organizations that effectively leverage ${topic} gain competitive advantages through improved efficiency, ` +
+      `enhanced customer experiences, and innovative business models.\n\n` +
+      `Tony Tech Insights | Making Technology Accessible for Every Business`;
+  }
 }
 
 // Fallback response generation if DeepSeek API fails
 function generateFallbackResponse(prompt) {
-  const responses = [
-    `At Tony Tech Insights, we focus on making technology accessible for businesses of all sizes. ${prompt} is an important consideration for modern businesses.`,
-    `Technology is transforming how businesses operate. When it comes to ${prompt}, companies should focus on strategic implementation that aligns with their core business objectives.`,
-    `${prompt} represents a significant opportunity for businesses to gain competitive advantage. The key is to start with clear goals and measure results consistently.`,
-    `From our experience at Tony Tech Insights, successful implementation of solutions related to ${prompt} requires both technical expertise and business acumen.`
-  ];
+  // Check if Vietnamese content is requested
+  const isVietnamese = 
+    prompt.includes('tiếng Việt') || 
+    prompt.includes('Vietnamese') ||
+    prompt.endsWith('Vietnamese.') ||
+    /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/.test(prompt);
   
-  return responses[Math.floor(Math.random() * responses.length)];
+  if (isVietnamese) {
+    // Vietnamese responses
+    const responses = [
+      `Tại Tony Tech Insights, chúng tôi tập trung vào việc giúp công nghệ dễ tiếp cận với các doanh nghiệp ở mọi quy mô. ${prompt} là một yếu tố quan trọng đối với các doanh nghiệp hiện đại.`,
+      `Công nghệ đang thay đổi cách thức hoạt động của doanh nghiệp. Khi đề cập đến ${prompt}, các công ty nên tập trung vào việc triển khai chiến lược phù hợp với mục tiêu kinh doanh cốt lõi.`,
+      `${prompt} thể hiện một cơ hội đáng kể cho doanh nghiệp để đạt được lợi thế cạnh tranh. Chìa khóa là bắt đầu với mục tiêu rõ ràng và đo lường kết quả một cách nhất quán.`,
+      `Từ kinh nghiệm tại Tony Tech Insights, việc triển khai thành công các giải pháp liên quan đến ${prompt} đòi hỏi cả chuyên môn kỹ thuật và kinh doanh.`
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  } else {
+    // English responses
+    const responses = [
+      `At Tony Tech Insights, we focus on making technology accessible for businesses of all sizes. ${prompt} is an important consideration for modern businesses.`,
+      `Technology is transforming how businesses operate. When it comes to ${prompt}, companies should focus on strategic implementation that aligns with their core business objectives.`,
+      `${prompt} represents a significant opportunity for businesses to gain competitive advantage. The key is to start with clear goals and measure results consistently.`,
+      `From our experience at Tony Tech Insights, successful implementation of solutions related to ${prompt} requires both technical expertise and business acumen.`
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
 } 
