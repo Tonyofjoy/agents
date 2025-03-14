@@ -25,7 +25,7 @@ interface DeepSeekAgentConfig {
 
 // Default configuration
 const DEFAULT_CONFIG: DeepSeekAgentConfig = {
-  apiEndpoint: 'http://localhost:8000/chat',
+  apiEndpoint: 'https://agents-git-main-duongdang-tonytechinsis-projects.vercel.app/api/chat',
 };
 
 // Define the request and response interfaces

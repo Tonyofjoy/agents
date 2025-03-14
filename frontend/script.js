@@ -1,5 +1,5 @@
 // Configuration
-const API_URL = 'http://localhost:8000';
+const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '/api';
 let sessionId = null;
 let isSending = false;
 let currentLanguage = 'en'; // Default language
