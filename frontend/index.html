@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tony Tech Insights Content Creator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tony Tech Insights Content Creator</h1>
+            <p>Affordable, accessible innovation for every business</p>
+            <div class="language-selector">
+                <button class="language-btn active" data-lang="en">English</button>
+                <button class="language-btn" data-lang="vi">Tiếng Việt</button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <nav class="tabs">
+                <button class="tab-button active" data-tab="chat">Chat</button>
+                <button class="tab-button" data-tab="content-templates">Content Templates</button>
+            </nav>
+
+            <div id="tab-chat" class="tab-content active">
+                <div class="chat-container">
+                    <div id="chat-history" class="chat-history">
+                        <div class="message system">
+                            <div class="message-content lang-content" 
+                                 data-lang-en="Hello! I'm your content creation assistant. I can help you create various types of content based on the Tony Tech Insights brand brief. Try asking me to create a social post, blog article, or other marketing content!" 
+                                 data-lang-vi="Xin chào! Tôi là trợ lý tạo nội dung của bạn. Tôi có thể giúp bạn tạo nhiều loại nội dung dựa trên brief thương hiệu của Tony Tech Insights. Hãy thử yêu cầu tôi tạo bài đăng mạng xã hội, bài viết blog hoặc nội dung tiếp thị khác!">
+                                Hello! I'm your content creation assistant. I can help you create various types of content based on the Tony Tech Insights brand brief. Try asking me to create a social post, blog article, or other marketing content!
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-area">
+                        <textarea id="user-input" placeholder="Type your message here..." rows="2"></textarea>
+                        <button id="send-button">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="tool-container" class="tool-container hidden">
+                    <h3>Tool Calls</h3>
+                    <div id="tool-calls"></div>
+                </div>
+            </div>
+
+            <div id="tab-content-templates" class="tab-content">
+                <div class="card">
+                    <h3 class="lang-content" data-lang-en="Content Generation Templates" data-lang-vi="Mẫu Tạo Nội Dung">Content Generation Templates</h3>
+                    <p class="lang-content" data-lang-en="Quick access to content generation templates. Select a template and fill in the details." data-lang-vi="Truy cập nhanh vào các mẫu tạo nội dung. Chọn một mẫu và điền vào chi tiết.">Quick access to content generation templates. Select a template and fill in the details.</p>
+                    
+                    <div class="template-grid">
+                        <div class="template-card" data-template="social_post">
+                            <h4 class="lang-content" data-lang-en="Social Media Post" data-lang-vi="Bài Đăng Mạng Xã Hội">Social Media Post</h4>
+                            <p class="lang-content" data-lang-en="Create engaging social media content for various platforms." data-lang-vi="Tạo nội dung hấp dẫn cho các nền tảng mạng xã hội.">Create engaging social media content for various platforms.</p>
+                        </div>
+                        
+                        <div class="template-card" data-template="blog_post">
+                            <h4 class="lang-content" data-lang-en="Blog Article" data-lang-vi="Bài Viết Blog">Blog Article</h4>
+                            <p class="lang-content" data-lang-en="Generate comprehensive blog posts with structured sections." data-lang-vi="Tạo các bài đăng blog toàn diện với các phần có cấu trúc.">Generate comprehensive blog posts with structured sections.</p>
+                        </div>
+                        
+                        <div class="template-card" data-template="email">
+                            <h4 class="lang-content" data-lang-en="Marketing Email" data-lang-vi="Email Marketing">Marketing Email</h4>
+                            <p class="lang-content" data-lang-en="Craft compelling email content with strong calls to action." data-lang-vi="Tạo nội dung email hấp dẫn với lời kêu gọi hành động mạnh mẽ.">Craft compelling email content with strong calls to action.</p>
+                        </div>
+                        
+                        <div class="template-card" data-template="ad_copy">
+                            <h4 class="lang-content" data-lang-en="Ad Copy" data-lang-vi="Nội Dung Quảng Cáo">Ad Copy</h4>
+                            <p class="lang-content" data-lang-en="Write persuasive advertising copy for campaigns." data-lang-vi="Viết nội dung quảng cáo thuyết phục cho các chiến dịch.">Write persuasive advertising copy for campaigns.</p>
+                        </div>
+                    </div>
+                    
+                    <div id="template-form" class="template-form hidden">
+                        <h4 id="template-form-title" class="lang-content" data-lang-en="Create Content" data-lang-vi="Tạo Nội Dung">Create Content</h4>
+                        
+                        <div class="form-group">
+                            <label for="template-brief-name" class="lang-content" data-lang-en="Brand Brief:" data-lang-vi="Brief Thương Hiệu:">Brand Brief:</label>
+                            <select id="template-brief-name">
+                                <option value="tony_tech_insights_brief">Tony Tech Insights</option>
+                                <option value="mai_phu_hung_brief">Mai Phú Hưng</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="template-topic" class="lang-content" data-lang-en="Topic:" data-lang-vi="Chủ Đề:">Topic:</label>
+                            <input type="text" id="template-topic" placeholder="Main topic of the content">
+                        </div>
+                        
+                        <div id="platform-field" class="form-group hidden">
+                            <label for="template-platform" class="lang-content" data-lang-en="Platform:" data-lang-vi="Nền Tảng:">Platform:</label>
+                            <select id="template-platform">
+                                <option value="" class="lang-content" data-lang-en="Select platform..." data-lang-vi="Chọn nền tảng...">Select platform...</option>
+                                <option value="twitter" class="lang-content" data-lang-en="Twitter" data-lang-vi="Twitter">Twitter</option>
+                                <option value="linkedin" class="lang-content" data-lang-en="LinkedIn" data-lang-vi="LinkedIn">LinkedIn</option>
+                                <option value="instagram" class="lang-content" data-lang-en="Instagram" data-lang-vi="Instagram">Instagram</option>
+                                <option value="facebook" class="lang-content" data-lang-en="Facebook" data-lang-vi="Facebook">Facebook</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="template-length" class="lang-content" data-lang-en="Length:" data-lang-vi="Độ Dài:">Length:</label>
+                            <select id="template-length">
+                                <option value="short" class="lang-content" data-lang-en="Short" data-lang-vi="Ngắn">Short</option>
+                                <option value="medium" selected class="lang-content" data-lang-en="Medium" data-lang-vi="Vừa">Medium</option>
+                                <option value="long" class="lang-content" data-lang-en="Long" data-lang-vi="Dài">Long</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="template-keywords" class="lang-content" data-lang-en="Keywords (comma separated):" data-lang-vi="Từ khóa (phân cách bằng dấu phẩy):">Keywords (comma separated):</label>
+                            <input type="text" id="template-keywords" placeholder="keyword1, keyword2, ...">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="template-cta" class="lang-content" data-lang-en="Call to Action:" data-lang-vi="Lời Kêu Gọi Hành Động:">Call to Action:</label>
+                            <input type="text" id="template-cta" placeholder="e.g., Sign up, Learn more, etc.">
+                        </div>
+                        
+                        <div class="template-actions">
+                            <button id="generate-content-button" class="primary-button lang-content" data-lang-en="Generate Content" data-lang-vi="Tạo Nội Dung">Generate Content</button>
+                            <button id="cancel-template-button" class="secondary-button lang-content" data-lang-en="Cancel" data-lang-vi="Hủy">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p><span class="lang-content" data-lang-en="Powered by Tony Tech Insights" data-lang-vi="Được hỗ trợ bởi Tony Tech Insights">Powered by Tony Tech Insights</span> | <span id="status">Connecting...</span></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 

@@ -1,0 +1,80 @@
+[
+  {
+    "id": "ad1",
+    "title": "Google Ads - Cybersecurity Services",
+    "platform": "Google Ads",
+    "date": "2023-10-01",
+    "headline_options": [
+      "Affordable Cybersecurity for Small Business",
+      "Protect Your Business Without Breaking the Bank",
+      "Small Business Cybersecurity Solutions"
+    ],
+    "description_options": [
+      "Expert cybersecurity services tailored for SMBs. Free assessment, clear pricing, no technical jargon.",
+      "43% of cyber attacks target SMBs. Get protected with affordable, effective security solutions.",
+      "Enterprise-level security at small business prices. Free consultation & custom security plan."
+    ],
+    "landing_page": "/services/cybersecurity",
+    "keywords": ["small business cybersecurity", "affordable IT security", "cyber protection services", "data security small business"],
+    "brief_name": "tony_tech_insights_brief"
+  },
+  {
+    "id": "ad2",
+    "title": "Facebook Ad - Cloud Migration Services",
+    "platform": "Facebook Ads",
+    "date": "2023-11-05",
+    "headline_options": [
+      "Move to the Cloud & Cut IT Costs by 30%",
+      "Cloud Migration Made Simple & Affordable",
+      "Future-Proof Your Business with Cloud Solutions"
+    ],
+    "description_options": [
+      "Seamless cloud migration tailored for small businesses. Reduce costs, improve efficiency, and enable remote work. Free assessment available.",
+      "Is your business ready for the cloud? Find out with our free readiness assessment. Expert cloud migration without the enterprise price tag.",
+      "Join the 250+ small businesses we've helped move to the cloud. Improve security, reduce costs, and enable growth. Book a free consultation."
+    ],
+    "landing_page": "/services/cloud-migration",
+    "image_description": "Business owner looking relieved while working on laptop with cloud icons and savings calculator in background",
+    "keywords": ["cloud migration services", "move to the cloud", "small business cloud solutions", "affordable cloud computing"],
+    "brief_name": "tony_tech_insights_brief"
+  },
+  {
+    "id": "ad3",
+    "title": "LinkedIn Ad - Digital Transformation Package",
+    "platform": "LinkedIn Ads",
+    "date": "2023-12-10",
+    "headline_options": [
+      "Digital Transformation Without the Enterprise Price",
+      "Modernize Your Business Operations Affordably",
+      "Digital Solutions Tailored for Growing Businesses"
+    ],
+    "description_options": [
+      "Comprehensive digital transformation services designed specifically for SMBs. Clear roadmap, transparent pricing, measurable results.",
+      "Stay competitive with affordable digital solutions. Our clients see 40% average efficiency gains. Free digital readiness assessment.",
+      "Expert-led digital transformation with global expertise and local support. Packages starting at just $1,500. Book a consultation today."
+    ],
+    "landing_page": "/services/digital-transformation",
+    "image_description": "Split screen showing before/after of business process with clear improvements and ROI metrics",
+    "keywords": ["digital transformation services", "business modernization", "affordable digital solutions", "business process improvement"],
+    "brief_name": "tony_tech_insights_brief"
+  },
+  {
+    "id": "ad4",
+    "title": "Google Ads - IT Support Services",
+    "platform": "Google Ads",
+    "date": "2024-01-15",
+    "headline_options": [
+      "Reliable IT Support for Small Businesses",
+      "Expert IT Help Without the Hefty Price Tag",
+      "On-Demand IT Support You Can Actually Afford"
+    ],
+    "description_options": [
+      "Responsive IT support tailored for small businesses. Fixed monthly fee, no hidden costs. First month 50% off.",
+      "Technical problems slowing you down? Get professional IT support at small business-friendly prices. Free IT health check.",
+      "24/7 IT support from a team that speaks your language, not tech jargon. Plans starting at $799/month for up to 20 users."
+    ],
+    "landing_page": "/services/it-support",
+    "keywords": ["small business IT support", "affordable tech support", "managed IT services", "business computer help"],
+    "brief_name": "tony_tech_insights_brief"
+  }
+] 

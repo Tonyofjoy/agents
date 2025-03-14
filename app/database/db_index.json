@@ -1,0 +1,39 @@
+{
+  "content_types": [
+    {
+      "type": "blog_posts",
+      "description": "Blog articles written in Tony Tech Insights' brand voice",
+      "file_path": "app/database/content/blog_posts.json",
+      "count": 3
+    },
+    {
+      "type": "email_templates",
+      "description": "Marketing email templates for various purposes",
+      "file_path": "app/database/content/email_templates.json",
+      "count": 3
+    },
+    {
+      "type": "social_posts",
+      "description": "Social media posts for different platforms",
+      "file_path": "app/database/content/social_posts.json",
+      "count": 5
+    },
+    {
+      "type": "ad_copy",
+      "description": "Advertising copy for various platforms",
+      "file_path": "app/database/content/ad_copy.json",
+      "count": 4
+    },
+    {
+      "type": "product_descriptions",
+      "description": "Detailed descriptions of Tony Tech Insights services and products",
+      "file_path": "app/database/content/product_descriptions.json",
+      "count": 3
+    }
+  ],
+  "total_items": 18,
+  "languages": ["en", "vi"],
+  "default_language": "en",
+  "brand_brief": "tony_tech_insights_brief",
+  "last_updated": "2024-05-10"
+} 

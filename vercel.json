@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "frontend/**", "use": "@vercel/static" },
+    { "src": "app/main.py", "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "app/main.py" },
+    { "src": "/(.*)", "dest": "frontend/$1" }
+  ],
+  "env": {
+    "DEEPSEEK_API_KEY": "@deepseek_api_key"
+  }
+} 

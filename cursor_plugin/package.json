@@ -1,0 +1,19 @@
+{
+  "name": "deepseek-agent-plugin",
+  "version": "0.1.0",
+  "description": "Cursor plugin for DeepSeek Agent",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.27.2"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.6",
+    "typescript": "^4.5.2"
+  }
+} 

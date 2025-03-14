@@ -1,0 +1,22 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Python files
+*.py text diff=python
+
+# JavaScript files
+*.js text
+*.json text
+
+# HTML/CSS files
+*.html text diff=html
+*.css text diff=css
+
+# Special binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary 

@@ -1,0 +1,83 @@
+{
+  "company_name": "Tony Tech Insights",
+  "tagline": "Affordable, accessible innovation for every business",
+  "mission": "To make digital services affordable and accessible to businesses of all sizes, enabling them to compete effectively in the digital landscape.",
+  "values": [
+    "Innovation",
+    "Global Expertise",
+    "Efficiency",
+    "Reliability",
+    "Honesty",
+    "Transparency",
+    "Respect",
+    "Conscientiousness",
+    "Professionalism"
+  ],
+  "tone_of_voice": [
+    "Professional",
+    "Honest",
+    "Transparent",
+    "Respectful",
+    "Conscientious",
+    "Knowledgeable",
+    "Approachable"
+  ],
+  "target_audience": [
+    {
+      "name": "Small Business Owners",
+      "description": "Small business owners across all industries who need digital transformation support but may have limited technical expertise."
+    },
+    {
+      "name": "Medium-sized Enterprises",
+      "description": "Medium-sized businesses looking to gain competitive advantages through technology and digital solutions."
+    },
+    {
+      "name": "Entrepreneurs",
+      "description": "New business founders who value quality, reliability, and accessibility in tech services."
+    }
+  ],
+  "unique_selling_proposition": "Delivering affordable, accessible, and innovative digital solutions with a young, tech-savvy team that provides global expertise and proven success, all with fast delivery, high quality, and transparent processes.",
+  "brand_colors": [
+    "#0021a7",
+    "#000000"
+  ],
+  "brand_typography": {
+    "primary": "BETELGUESSE",
+    "secondary": "Deltha",
+    "body": "Raleway"
+  },
+  "services": [
+    "Marketing & Branding",
+    "Application Development",
+    "AI Automation",
+    "Cloud Services",
+    "Data Services"
+  ],
+  "competitors": [
+    "Regional digital agencies",
+    "Freelance developers",
+    "Large tech consultancies",
+    "SaaS platforms"
+  ],
+  "content_topics": [
+    "Digital transformation",
+    "Technology innovation",
+    "Business efficiency",
+    "Custom software solutions",
+    "Mobile application development",
+    "Web development",
+    "AI and automation",
+    "Cloud migration",
+    "Data analysis",
+    "Business intelligence",
+    "Strategic technology insights"
+  ],
+  "taboo_topics": [
+    "Disparaging competitors",
+    "Overpromising results",
+    "Political controversies",
+    "Highly technical content without context",
+    "Price-focused messaging over value"
+  ],
+  "brand_promise": "Delivering affordable, accessible, and innovative digital solutions that empower businesses to thrive in an increasingly competitive digital landscape, with an unwavering commitment to quality, reliability, and client satisfaction."
+} 

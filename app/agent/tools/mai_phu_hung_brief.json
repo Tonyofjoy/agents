@@ -1,0 +1,48 @@
+{
+    "company_name": "Mai Phú Hưng",
+    "industry": "Household products",
+    "description": "Mai Phú Hưng specializes in eco-friendly household and personal care products, focusing on natural ingredients and sustainability.",
+    "brand_values": [
+        "Natural ingredients",
+        "Eco-friendly production",
+        "Family safety",
+        "Vietnamese heritage",
+        "Quality and effectiveness"
+    ],
+    "tone_of_voice": [
+        "Friendly and enthusiastic",
+        "Educational about natural ingredients",
+        "Warm and family-oriented",
+        "Proud of Vietnamese heritage",
+        "Straightforward about benefits"
+    ],
+    "target_audience": [
+        "Vietnamese families with children",
+        "Health-conscious consumers",
+        "Environmentally-aware shoppers",
+        "Middle to upper-middle class urban households"
+    ],
+    "preferred_hashtags": [
+        "MaiPhuHung",
+        "SạchTựNhiên",
+        "SảnPhẩmVietNam",
+        "ChấtLượngCuộcSống",
+        "VìGiađình",
+        "SứcKhỏeGiađình"
+    ],
+    "special_instructions": [
+        "Always include product benefits related to health or environmental impact",
+        "Emphasize the natural ingredients in products",
+        "Include contact information: Website: maiphuhung.com.vn, Hotline: 028 7308 6680",
+        "Vietnamese language should be primary, but can include some English terms when appropriate",
+        "Use emojis in social media content for better engagement"
+    ],
+    "use_emojis": true,
+    "contact_info": {
+        "website": "maiphuhung.com.vn",
+        "hotline": "028 7308 6680",
+        "facebook": "MaiPhuHungVN",
+        "zalo": "MaiPhuHung"
+    },
+    "language": "vi"
+}
