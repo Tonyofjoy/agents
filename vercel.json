@@ -3,9 +3,12 @@
   "builds": [
     { "src": "frontend/**", "use": "@vercel/static" },
     { "src": "app/api/simple_api.py", "use": "@vercel/python" },
-    { "src": "app/api/index.html", "use": "@vercel/static" }
+    { "src": "app/api/index.html", "use": "@vercel/static" },
+    { "src": "app/api/test.html", "use": "@vercel/static" }
   ],
   "routes": [
+    { "src": "/api/test.html", "dest": "app/api/test.html" },
+    { "src": "/api/index.html", "dest": "app/api/index.html" },
     { "src": "/api", "dest": "app/api/simple_api.py" },
     { "src": "/api/(.*)", "dest": "app/api/simple_api.py" },
     { "src": "/(.*)", "dest": "frontend/$1" }

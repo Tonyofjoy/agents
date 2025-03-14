@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #response {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    
+    <div>
+        <h2>Test Endpoints</h2>
+        <button id="testRoot">Test Root Endpoint</button>
+        <button id="testTest">Test /test Endpoint</button>
+    </div>
+    
+    <div>
+        <h2>Test Chat</h2>
+        <textarea id="prompt" placeholder="Enter your message here...">Hello, this is a test message!</textarea>
+        <button id="testChat">Send Message</button>
+    </div>
+    
+    <div id="response"></div>
+    
+    <script>
+        const responseElement = document.getElementById('response');
+        const promptElement = document.getElementById('prompt');
+        
+        // Base API URL
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8000' 
+            : 'https://agents-ten-tau.vercel.app/api';
+            
+        // Display response
+        function displayResponse(data) {
+            responseElement.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+        
+        // Test root endpoint
+        document.getElementById('testRoot').addEventListener('click', async () => {
+            try {
+                responseElement.textContent = 'Loading...';
+                const response = await fetch(`${API_URL}/`);
+                const data = await response.json();
+                displayResponse(data);
+            } catch (error) {
+                displayResponse(`Error: ${error.message}`);
+            }
+        });
+        
+        // Test /test endpoint
+        document.getElementById('testTest').addEventListener('click', async () => {
+            try {
+                responseElement.textContent = 'Loading...';
+                const response = await fetch(`${API_URL}/test`);
+                const data = await response.json();
+                displayResponse(data);
+            } catch (error) {
+                displayResponse(`Error: ${error.message}`);
+            }
+        });
+        
+        // Test chat endpoint
+        document.getElementById('testChat').addEventListener('click', async () => {
+            try {
+                responseElement.textContent = 'Loading...';
+                const prompt = promptElement.value.trim();
+                
+                if (!prompt) {
+                    displayResponse('Please enter a message');
+                    return;
+                }
+                
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        session_id: 'test-session'
+                    })
+                });
+                
+                const responseText = await response.text();
+                try {
+                    const data = JSON.parse(responseText);
+                    displayResponse(data);
+                } catch (e) {
+                    displayResponse(`Raw response (not JSON): ${responseText}`);
+                }
+            } catch (error) {
+                displayResponse(`Error: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html> 

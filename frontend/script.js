@@ -205,17 +205,28 @@ async function sendMessage() {
     setupRequestTimeout(120000); // 2 minutes timeout
     
     try {
+        console.log("Sending message to API:", messageText);
+        console.log("API URL:", `${API_URL}/chat`);
+        console.log("Session ID:", sessionId);
+        
+        // Prepare request payload
+        const payload = {
+            prompt: messageText,
+            session_id: sessionId
+        };
+        
+        console.log("Request payload:", payload);
+        
         // Send request to API
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                prompt: messageText,
-                session_id: sessionId
-            })
+            body: JSON.stringify(payload)
         });
+        
+        console.log("Response status:", response.status);
         
         // Remove typing indicator and cancel button
         typingMessage.remove();
@@ -228,7 +239,18 @@ async function sendMessage() {
             throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const responseText = await response.text();
+        console.log("Raw response:", responseText);
+        
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error("Error parsing JSON response:", e);
+            throw new Error("Invalid JSON response from server");
+        }
+        
+        console.log("Parsed response data:", data);
         
         // Update session ID and current request ID
         sessionId = data.session_id;
