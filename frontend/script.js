@@ -2,7 +2,7 @@
 const API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8000' 
     : 'https://agents-ten-tau.vercel.app/api';
-let sessionId = null;
+let sessionId = generateSessionId(); // Initialize session ID immediately
 let isSending = false;
 let currentLanguage = 'en'; // Default language
 let currentRequestId = null; // Track the current request ID for cancellation
@@ -82,6 +82,7 @@ async function initApp() {
 async function initChat() {
     try {
         console.log("Connecting to API at:", API_URL);
+        console.log("Initial session ID:", sessionId);
         
         // Test connection to API
         const response = await fetch(`${API_URL}/`);
@@ -98,9 +99,8 @@ async function initChat() {
             statusElement.textContent = 'Connected';
             statusElement.classList.add('connected');
             
-            // Generate a random session ID
-            sessionId = generateSessionId();
-            console.log('Session ID:', sessionId);
+            // Session ID is already initialized at the top
+            console.log('Using session ID:', sessionId);
         } else {
             throw new Error('API not responding correctly');
         }
@@ -114,6 +114,7 @@ async function initChat() {
         // Add more detailed error information
         console.log("API URL:", API_URL);
         console.log("Window location:", window.location.href);
+        console.log("Will use fallback session ID:", sessionId);
     }
 }
 
@@ -209,6 +210,12 @@ async function sendMessage() {
         console.log("API URL:", `${API_URL}/chat`);
         console.log("Session ID:", sessionId);
         
+        // Ensure session ID is set
+        if (!sessionId) {
+            sessionId = generateSessionId();
+            console.log("Generated new session ID:", sessionId);
+        }
+        
         // Prepare request payload
         const payload = {
             prompt: messageText,
@@ -235,19 +242,23 @@ async function sendMessage() {
         // Clear request timeout
         clearRequestTimeout();
         
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
+        // Get the response text first, regardless of status code
         const responseText = await response.text();
         console.log("Raw response:", responseText);
+        
+        // Then check if the response was ok
+        if (!response.ok) {
+            console.error(`API error ${response.status}: ${responseText}`);
+            throw new Error(`API error: ${response.status} - ${responseText.substring(0, 100)}`);
+        }
         
         let data;
         try {
             data = JSON.parse(responseText);
         } catch (e) {
             console.error("Error parsing JSON response:", e);
-            throw new Error("Invalid JSON response from server");
+            console.error("Raw response that couldn't be parsed:", responseText);
+            throw new Error(`Invalid JSON response from server: ${responseText.substring(0, 100)}`);
         }
         
         console.log("Parsed response data:", data);
@@ -269,6 +280,16 @@ async function sendMessage() {
     } catch (error) {
         console.error('Error sending message:', error);
         addMessage('error', `Error: ${error.message}`);
+        
+        // Add more detailed error information to the chat
+        if (error.message.includes('API error')) {
+            addMessage('system', 'There was a problem with the API. Please try again later or check the console for more details.');
+        } else if (error.message.includes('Invalid JSON')) {
+            addMessage('system', 'The server returned an invalid response. Please try again later or check the console for more details.');
+        } else {
+            addMessage('system', 'There was a network error. Please check your connection and try again.');
+        }
+        
         removeCancelButton();
         clearRequestTimeout();
     } finally {
