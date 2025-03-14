@@ -7,10 +7,12 @@ let isSending = false;
 let currentLanguage = 'en'; // Default language
 let currentRequestId = null; // Track the current request ID for cancellation
 let requestTimeoutId = null; // To track the timeout for long-running requests
+let isDeepSeekConnected = false; // Track if DeepSeek is connected
 
-// Updated timeouts
-const FETCH_TIMEOUT = 40000; // 40 seconds timeout for fetch requests
-const USER_FEEDBACK_TIMEOUT = 15000; // 15 seconds before showing "taking longer than expected" message
+// Timeouts - reduced to match backend limits
+const FETCH_TIMEOUT = 15000; // 15 seconds timeout for fetch requests
+const USER_FEEDBACK_TIMEOUT = 4000; // 4 seconds before showing first feedback message
+const LONG_WAIT_WARNING = 8000; // 8 seconds before showing serious wait warning
 
 // DOM Elements - Chat
 const chatHistory = document.getElementById('chat-history');
@@ -103,6 +105,14 @@ async function initChat() {
             statusElement.textContent = 'Connected';
             statusElement.classList.add('connected');
             statusElement.classList.remove('disconnected');
+            
+            // Check if DeepSeek is connected
+            isDeepSeekConnected = data.deepseek_connected === true;
+            
+            if (!isDeepSeekConnected) {
+                console.warn("DeepSeek API is not configured. Using fallback responses.");
+                addMessage('system', `Note: The AI service is currently unavailable. I'll still try to help with basic responses, but for more detailed answers, please try again later.`);
+            }
             
             // Session ID is already initialized at the top
             console.log('Using session ID:', sessionId);
@@ -217,8 +227,8 @@ async function sendMessage() {
     const cancelButton = addCancelButton();
     cancelButton.addEventListener('click', handleRequestCancel);
     
-    // Set up request timeout monitoring
-    setupRequestTimeout(120000); // 2 minutes timeout
+    // Set up request timeout monitoring with shorter timeouts
+    setupRequestTimeout(30000); // 30 seconds max timeout
     
     try {
         console.log("Sending message to API:", messageText);
@@ -239,9 +249,9 @@ async function sendMessage() {
         
         console.log("Request payload:", payload);
         
-        // Send request to API with increased timeout
+        // Send request to API with a reasonable timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT); // Increased from 25s to 40s
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
         
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
@@ -261,27 +271,6 @@ async function sendMessage() {
         // Clear request timeout
         clearRequestTimeout();
         
-        // Handle timeout (504) responses gracefully
-        if (response.status === 504) {
-            console.log("Server timeout, using fallback response");
-            
-            // Add a system message about the timeout
-            addMessage('system', currentLanguage === 'en' ? 
-                'The server took too long to respond. Here\'s a simple response instead:' : 
-                'Máy chủ mất quá nhiều thời gian để phản hồi. Đây là phản hồi đơn giản thay thế:');
-            
-            // Create a fallback response
-            const fallbackResponse = currentLanguage === 'en' ? 
-                `I understand you're asking about "${messageText}". This is an important topic for businesses. Please try asking a more specific question for a better response.` :
-                `Tôi hiểu bạn đang hỏi về "${messageText}". Đây là một chủ đề quan trọng cho doanh nghiệp. Vui lòng thử hỏi câu hỏi cụ thể hơn để có phản hồi tốt hơn.`;
-            
-            // Add the fallback response as an agent message
-            addMessage('agent', fallbackResponse);
-            
-            // Early return to avoid processing the response
-            return;
-        }
-        
         // Get the response text first, regardless of status code
         const responseText = await response.text();
         console.log("Raw response:", responseText);
@@ -290,14 +279,18 @@ async function sendMessage() {
         if (!response.ok) {
             console.error(`API error ${response.status}: ${responseText}`);
             
-            // Add error message to chat
-            if (response.status === 404) {
-                addMessage('system', 'Error: The chat API endpoint could not be found. This is likely a configuration issue with the API routes.');
-            } else if (response.status === 500) {
-                addMessage('system', 'Error: The server encountered an internal error. Please check the server logs for details.');
-            } else {
-                addMessage('system', `Error: The server returned status code ${response.status}. Please try again later.`);
+            // Parse the error if possible
+            let errorData;
+            try {
+                errorData = JSON.parse(responseText);
+            } catch (e) {
+                errorData = { error: `Status ${response.status}: ${responseText}` };
             }
+            
+            // Display a user-friendly error message
+            addMessage('system', currentLanguage === 'en' ? 
+                `Sorry, there was a problem with the chat service. Please try again in a moment.` : 
+                `Xin lỗi, đã xảy ra sự cố với dịch vụ trò chuyện. Vui lòng thử lại sau một lát.`);
             
             throw new Error(`API error: ${response.status} - ${responseText.substring(0, 100)}`);
         }
@@ -314,16 +307,14 @@ async function sendMessage() {
         
         console.log("Parsed response data:", data);
         
-        // Check if using fallback and notify user if appropriate
-        if (data._using_fallback || data.using_deepseek === false) {
-            console.log("Using fallback response mechanism");
-            if (data._error) {
-                console.error("Original error:", data._error);
-            }
-            
-            // Only add system message for non-Vietnamese content as it might be confusing
-            if (currentLanguage === 'en' && !messageText.includes('Vietnamese')) {
-                addMessage('system', "Note: I'm providing a simplified response due to technical limitations. For better results, try a more specific question.");
+        // Check if using fallback response
+        if (data.using_deepseek === false && !isDeepSeekConnected) {
+            // Only show the message once per session
+            if (!sessionStorage.getItem('fallback_notified')) {
+                addMessage('system', currentLanguage === 'en' ? 
+                    `Note: I'm currently working with limited capabilities. For more detailed responses, please check back later.` : 
+                    `Lưu ý: Tôi hiện đang làm việc với khả năng hạn chế. Để có phản hồi chi tiết hơn, vui lòng quay lại sau.`);
+                sessionStorage.setItem('fallback_notified', 'true');
             }
         }
         
@@ -347,8 +338,8 @@ async function sendMessage() {
         // Handle abort/timeout errors specifically
         if (error.name === 'AbortError') {
             addMessage('system', currentLanguage === 'en' ? 
-                'The request was cancelled because it took too long. Please try a shorter message or try again later.' : 
-                'Yêu cầu đã bị hủy vì mất quá nhiều thời gian. Vui lòng thử tin nhắn ngắn hơn hoặc thử lại sau.');
+                'The request was cancelled because it took too long. Please try again in a moment.' : 
+                'Yêu cầu đã bị hủy vì mất quá nhiều thời gian. Vui lòng thử lại sau một lát.');
         } else {
             // Handle other errors
             addMessage('error', `Error: ${error.message}`);
@@ -433,7 +424,7 @@ function setupRequestTimeout(timeoutMs) {
     // Clear any existing timeout
     clearRequestTimeout();
     
-    // Set a short timeout for first warning
+    // Set a short timeout for first warning - reduced to accommodate shorter backend timeout
     requestTimeoutId = setTimeout(() => {
         if (isSending && currentRequestId) {
             // Add a message to let the user know the request is taking a while
@@ -441,8 +432,8 @@ function setupRequestTimeout(timeoutMs) {
             timeoutWarning.classList.add('timeout-warning');
             timeoutWarning.id = 'timeout-warning';
             timeoutWarning.textContent = currentLanguage === 'en' ? 
-                'I\'m working on a thoughtful response. This might take a moment...' : 
-                'Tôi đang làm việc trên một phản hồi có chiều sâu. Việc này có thể mất một chút thời gian...';
+                'Working on your response...' : 
+                'Đang xử lý phản hồi của bạn...';
             
             // Add to the chat just before the typing indicator
             const typingIndicator = document.querySelector('.typing-indicator');
@@ -450,23 +441,23 @@ function setupRequestTimeout(timeoutMs) {
                 typingIndicator.parentElement.insertBefore(timeoutWarning, typingIndicator);
             }
             
-            // Set a longer timeout for follow-up warning (45 seconds)
+            // Set a longer timeout for follow-up warning
             setTimeout(() => {
                 if (isSending && currentRequestId) {
                     // Update the warning
                     const existingWarning = document.getElementById('timeout-warning');
                     if (existingWarning) {
                         existingWarning.textContent = currentLanguage === 'en' ? 
-                            'This request is taking longer than expected. You can cancel and try a simpler query, or continue waiting for a detailed response.' : 
-                            'Yêu cầu này đang mất nhiều thời gian hơn dự kiến. Bạn có thể hủy và thử một yêu cầu đơn giản hơn, hoặc tiếp tục chờ để nhận phản hồi chi tiết.';
+                            'This is taking longer than expected. You can cancel and try again if needed.' : 
+                            'Việc này đang mất nhiều thời gian hơn dự kiến. Bạn có thể hủy và thử lại nếu cần.';
                         existingWarning.style.backgroundColor = '#fff8e1';
                         existingWarning.style.color = '#856404';
                         existingWarning.style.borderColor = '#ffeeba';
                     }
                 }
-            }, 30000); // 30 seconds after first warning (45 seconds total)
+            }, LONG_WAIT_WARNING - USER_FEEDBACK_TIMEOUT); // Show second warning after 8 seconds total
         }
-    }, USER_FEEDBACK_TIMEOUT); // Show first message after 15 seconds (reduced from 30)
+    }, USER_FEEDBACK_TIMEOUT); // Show first message after 4 seconds
 }
 
 function clearRequestTimeout() {
@@ -601,6 +592,17 @@ async function generateContent() {
         return;
     }
     
+    // Warn if DeepSeek is not connected
+    if (!isDeepSeekConnected) {
+        const proceed = confirm(currentLanguage === 'en' ? 
+            'The AI service is currently unavailable, so content generation may be limited. Would you like to proceed anyway?' : 
+            'Dịch vụ AI hiện không khả dụng, vì vậy việc tạo nội dung có thể bị hạn chế. Bạn có muốn tiếp tục không?');
+        
+        if (!proceed) {
+            return;
+        }
+    }
+    
     // Build prompt
     let prompt = `Generate a ${templateType.replace('_', ' ')} about "${topic}" `;
     prompt += `using the brand brief "${briefName}" `;
@@ -640,25 +642,23 @@ async function generateContent() {
         cancelButton.addEventListener('click', handleRequestCancel);
         
         // Set up request timeout monitoring with feedback for templates
-        setupRequestTimeout(180000); // 3 minutes timeout for templates since they're more complex
+        setupRequestTimeout(60000); // 1 minute timeout for templates
         
         // Create timeout message immediately for templates since we know they'll take time
         const timeoutMessage = document.createElement('div');
         timeoutMessage.classList.add('timeout-warning');
         timeoutMessage.textContent = currentLanguage === 'en' ? 
-            'Generating creative content. This typically takes 20-45 seconds for quality results...' : 
-            'Đang tạo nội dung sáng tạo. Điều này thường mất 20-45 giây để có kết quả chất lượng...';
+            'Generating content for you now...' : 
+            'Đang tạo nội dung cho bạn...';
         
-        // Add timeout message after 2 seconds for templates
-        const messageTimeoutId = setTimeout(() => {
-            if (typingMessage.parentElement) {
-                typingMessage.parentElement.insertBefore(timeoutMessage, typingMessage);
-            }
-        }, 2000);
+        // Add timeout message immediately for templates
+        if (typingMessage.parentElement) {
+            typingMessage.parentElement.insertBefore(timeoutMessage, typingMessage);
+        }
         
-        // Send request to API with increased timeout
+        // Send request to API with timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT); // 40 seconds timeout (increased from 25s)
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
         
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
@@ -672,7 +672,6 @@ async function generateContent() {
             signal: controller.signal
         }).finally(() => {
             clearTimeout(timeoutId);
-            clearTimeout(messageTimeoutId);
         });
         
         // Remove typing indicator and timeout message
@@ -687,35 +686,29 @@ async function generateContent() {
         // Clear request timeout
         clearRequestTimeout();
         
-        if (!response.ok) {
-            // If it's a server timeout (504), add a more user-friendly message
-            if (response.status === 504) {
-                addMessage('system', currentLanguage === 'en' ? 
-                    'The content generation request timed out. I\'ll create a simpler response for you.' : 
-                    'Yêu cầu tạo nội dung đã hết thời gian. Tôi sẽ tạo một phản hồi đơn giản hơn cho bạn.');
-                
-                // Generate fallback content
-                let fallbackContent = `# ${topic.charAt(0).toUpperCase() + topic.slice(1)}: ${currentLanguage === 'en' ? 'Business Insights' : 'Hiểu biết về kinh doanh'}\n\n`;
-                fallbackContent += currentLanguage === 'en' ?
-                    `Here's a brief overview of ${topic} for your ${templateType.replace('_', ' ')}:\n\n` :
-                    `Đây là tổng quan ngắn gọn về ${topic} cho ${templateType.replace('_', ' ')} của bạn:\n\n`;
-                
-                fallbackContent += currentLanguage === 'en' ?
-                    `${topic} is transforming how businesses operate in today's digital landscape. Organizations that effectively leverage this technology gain significant advantages through improved efficiency, better customer experiences, and innovative business models.\n\n` :
-                    `${topic} đang thay đổi cách các doanh nghiệp hoạt động trong bối cảnh kỹ thuật số ngày nay. Các tổ chức tận dụng hiệu quả công nghệ này đạt được lợi thế đáng kể thông qua hiệu quả được cải thiện, trải nghiệm khách hàng tốt hơn và các mô hình kinh doanh sáng tạo.\n\n`;
-                
-                fallbackContent += "Tony Tech Insights | " + (currentLanguage === 'en' ? "Making Technology Accessible for Every Business" : "Làm cho Công nghệ Tiếp cận với Mọi Doanh nghiệp");
-                
-                addMessage('agent', fallbackContent);
-                return;
-            }
-            
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        // Get the response text first, regardless of status code
+        // Get the response text regardless of status
         const responseText = await response.text();
         console.log("Raw template response:", responseText);
+        
+        // Check if the response was ok
+        if (!response.ok) {
+            console.error(`API error ${response.status}: ${responseText}`);
+            
+            // Parse the error if possible
+            let errorData;
+            try {
+                errorData = JSON.parse(responseText);
+            } catch (e) {
+                errorData = { error: `Status ${response.status}: ${responseText}` };
+            }
+            
+            // Show specific error message
+            addMessage('system', currentLanguage === 'en' ? 
+                `Sorry, there was a problem generating the content. Please try again in a moment.` : 
+                `Xin lỗi, đã xảy ra sự cố khi tạo nội dung. Vui lòng thử lại sau một lát.`);
+                
+            throw new Error(`API error: ${response.status} - ${responseText.substring(0, 100)}`);
+        }
         
         let data;
         try {
@@ -727,10 +720,11 @@ async function generateContent() {
         
         console.log("Parsed template response data:", data);
         
-        // Check if using fallback
-        if (data._using_fallback || data.using_deepseek === false) {
-            console.log("Using fallback response for template");
-            // No need to notify user since templates are expected to be simplified sometimes
+        // Check if using fallback response
+        if (data.using_deepseek === false) {
+            addMessage('system', currentLanguage === 'en' ? 
+                `Note: I've provided a basic template. For more detailed content, please try again when the AI service is fully available.` : 
+                `Lưu ý: Tôi đã cung cấp một mẫu cơ bản. Để có nội dung chi tiết hơn, vui lòng thử lại khi dịch vụ AI hoàn toàn khả dụng.`);
         }
         
         // Add agent response
@@ -749,14 +743,11 @@ async function generateContent() {
         if (error.name === 'AbortError') {
             // Handle timeout/abort error specifically
             addMessage('system', currentLanguage === 'en' ? 
-                'The request took too long to complete. Please try again with a simpler request or try later when the server is less busy.' : 
-                'Yêu cầu mất quá nhiều thời gian để hoàn thành. Vui lòng thử lại với yêu cầu đơn giản hơn hoặc thử lại sau khi máy chủ ít bận rộn hơn.');
+                'The content generation request took too long and was cancelled. Please try again in a moment.' : 
+                'Yêu cầu tạo nội dung mất quá nhiều thời gian và đã bị hủy. Vui lòng thử lại sau một lát.');
         } else {
             // Handle other errors
             addMessage('error', `Error: ${error.message}`);
-            addMessage('system', currentLanguage === 'en' ?
-                'There was a problem generating your content. Please try again later.' :
-                'Đã xảy ra sự cố khi tạo nội dung của bạn. Vui lòng thử lại sau.');
         }
     } finally {
         removeCancelButton();
