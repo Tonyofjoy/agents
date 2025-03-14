@@ -1,5 +1,7 @@
 // Configuration
-const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '/api';
+const API_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000' 
+    : `${window.location.protocol}//${window.location.host}/api`;
 let sessionId = null;
 let isSending = false;
 let currentLanguage = 'en'; // Default language
@@ -79,9 +81,18 @@ async function initApp() {
 
 async function initChat() {
     try {
+        console.log("Connecting to API at:", API_URL);
+        
         // Test connection to API
         const response = await fetch(`${API_URL}/`);
+        console.log("API response status:", response.status);
+        
+        if (!response.ok) {
+            throw new Error(`API returned status ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log("API response data:", data);
         
         if (data.status === 'ok') {
             statusElement.textContent = 'Connected';
@@ -98,7 +109,11 @@ async function initChat() {
         statusElement.textContent = 'Disconnected';
         statusElement.classList.add('disconnected');
         
-        addMessage('system', 'Error connecting to the Tony Tech Insights API. Make sure the server is running at ' + API_URL);
+        addMessage('system', `Error connecting to the Tony Tech Insights API. Make sure the server is running at ${API_URL}`);
+        
+        // Add more detailed error information
+        console.log("API URL:", API_URL);
+        console.log("Window location:", window.location.href);
     }
 }
 
