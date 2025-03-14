@@ -5,9 +5,9 @@
     { "src": "app/api/*.py", "use": "@vercel/python" }
   ],
   "routes": [
-    { "src": "/api/chat", "dest": "app/api/chat.py" },
-    { "src": "/api/test", "dest": "app/api/test.py" },
-    { "src": "/api", "dest": "app/api/index.py" },
+    { "src": "/api/chat", "dest": "app/api/chat.py", "methods": ["POST", "OPTIONS"] },
+    { "src": "/api/test", "dest": "app/api/test.py", "methods": ["GET", "OPTIONS"] },
+    { "src": "/api", "dest": "app/api/index.py", "methods": ["GET", "OPTIONS"] },
     { "src": "/(.*)", "dest": "frontend/$1" }
   ]
 } 

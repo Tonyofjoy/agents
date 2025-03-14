@@ -1,7 +1,7 @@
 // Configuration
 const API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8000' 
-    : 'https://agents-ten-tau.vercel.app/api';
+    : window.location.origin + '/api';
 let sessionId = generateSessionId(); // Initialize session ID immediately
 let isSending = false;
 let currentLanguage = 'en'; // Default language
@@ -85,7 +85,7 @@ async function initChat() {
         console.log("Initial session ID:", sessionId);
         
         // Test connection to API
-        const response = await fetch(`${API_URL}/`);
+        const response = await fetch(`${API_URL}`);
         console.log("API response status:", response.status);
         
         if (!response.ok) {
@@ -98,6 +98,7 @@ async function initChat() {
         if (data.status === 'ok') {
             statusElement.textContent = 'Connected';
             statusElement.classList.add('connected');
+            statusElement.classList.remove('disconnected');
             
             // Session ID is already initialized at the top
             console.log('Using session ID:', sessionId);
@@ -107,14 +108,24 @@ async function initChat() {
     } catch (error) {
         console.error('Error connecting to API:', error);
         statusElement.textContent = 'Disconnected';
+        statusElement.classList.remove('connected');
         statusElement.classList.add('disconnected');
         
-        addMessage('system', `Error connecting to the Tony Tech Insights API. Make sure the server is running at ${API_URL}`);
+        addMessage('system', `Error connecting to the Tony Tech Insights API. Make sure the server is running.`);
         
         // Add more detailed error information
         console.log("API URL:", API_URL);
         console.log("Window location:", window.location.href);
         console.log("Will use fallback session ID:", sessionId);
+        
+        // Try connecting to the base URL
+        try {
+            console.log("Attempting to connect to base URL:", window.location.origin);
+            const baseResponse = await fetch(window.location.origin);
+            console.log("Base URL response status:", baseResponse.status);
+        } catch (baseError) {
+            console.error("Error connecting to base URL:", baseError);
+        }
     }
 }
 
@@ -207,7 +218,7 @@ async function sendMessage() {
     
     try {
         console.log("Sending message to API:", messageText);
-        console.log("API URL:", `${API_URL}/chat`);
+        console.log("API URL for chat:", `${API_URL}/chat`);
         console.log("Session ID:", sessionId);
         
         // Ensure session ID is set
@@ -224,14 +235,18 @@ async function sendMessage() {
         
         console.log("Request payload:", payload);
         
-        // Send request to API
+        // Send request to API with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(payload)
-        });
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
         
         console.log("Response status:", response.status);
         
@@ -249,6 +264,16 @@ async function sendMessage() {
         // Then check if the response was ok
         if (!response.ok) {
             console.error(`API error ${response.status}: ${responseText}`);
+            
+            // Add error message to chat
+            if (response.status === 404) {
+                addMessage('system', 'Error: The chat API endpoint could not be found. This is likely a configuration issue with the API routes.');
+            } else if (response.status === 500) {
+                addMessage('system', 'Error: The server encountered an internal error. Please check the server logs for details.');
+            } else {
+                addMessage('system', `Error: The server returned status code ${response.status}. Please try again later.`);
+            }
+            
             throw new Error(`API error: ${response.status} - ${responseText.substring(0, 100)}`);
         }
         
@@ -258,6 +283,7 @@ async function sendMessage() {
         } catch (e) {
             console.error("Error parsing JSON response:", e);
             console.error("Raw response that couldn't be parsed:", responseText);
+            addMessage('system', 'Error: The server returned an invalid response. Please try again later.');
             throw new Error(`Invalid JSON response from server: ${responseText.substring(0, 100)}`);
         }
         
