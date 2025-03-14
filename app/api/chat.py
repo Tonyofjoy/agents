@@ -3,7 +3,13 @@ import json
 import uuid
 
 class handler(BaseHTTPRequestHandler):
+    """
+    Chat API endpoint handler.
+    This endpoint handles chat requests from the frontend and returns responses.
+    """
+    
     def do_POST(self):
+        """Handle POST request to the chat endpoint."""
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -42,8 +48,9 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(error_response).encode())
     
     def do_OPTIONS(self):
+        """Handle OPTIONS request for CORS preflight."""
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers() 

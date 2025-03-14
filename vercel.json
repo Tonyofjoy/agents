@@ -2,12 +2,9 @@
   "version": 2,
   "builds": [
     { "src": "frontend/**", "use": "@vercel/static" },
-    { "src": "app/api/*.py", "use": "@vercel/python" },
-    { "src": "app/api/*.html", "use": "@vercel/static" }
+    { "src": "app/api/*.py", "use": "@vercel/python" }
   ],
   "routes": [
-    { "src": "/api/test.html", "dest": "app/api/test.html" },
-    { "src": "/api/simple_test.html", "dest": "app/api/simple_test.html" },
     { "src": "/api/chat", "dest": "app/api/chat.py" },
     { "src": "/api/test", "dest": "app/api/test.py" },
     { "src": "/api", "dest": "app/api/index.py" },
