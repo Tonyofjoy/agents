@@ -5,10 +5,17 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc -w"
+    "watch": "tsc -w",
+    "install-plugin": "node install.js",
+    "cleanup": "node cleanup.js",
+    "cleanup-all": "node cleanup.js --all"
   },
-  "author": "Your Name",
+  "author": "Tony Tech Insights",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tonyofjoy/agents.git"
+  },
   "dependencies": {
     "axios": "^0.27.2"
   },

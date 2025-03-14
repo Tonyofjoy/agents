@@ -161,7 +161,7 @@ async function generateCode() {
 
     // Insert the generated code at cursor position
     const position = editor.selection.active;
-    editor.edit((editBuilder) => {
+    editor.edit((editBuilder: any) => {
       editBuilder.insert(position, response.response);
     });
 
@@ -251,7 +251,7 @@ async function refactorCode() {
     const response = await sendToAgent(prompt);
 
     // Replace the selected text with the refactored code
-    editor.edit((editBuilder) => {
+    editor.edit((editBuilder: any) => {
       editBuilder.replace(selection, response.response);
     });
 

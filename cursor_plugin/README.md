@@ -11,6 +11,14 @@ A plugin for the Cursor IDE that allows you to interact with your DeepSeek AI Ag
 
 ## Installation
 
+### Option 1: Automated Installation (Recommended)
+
+1. Copy this plugin directory to your Cursor plugins folder
+2. Run: `node install.js` or `npm run install-plugin`
+3. Enable the plugin in Cursor
+
+### Option 2: Manual Installation
+
 1. Copy this plugin directory to your Cursor plugins folder
 2. Install dependencies: `npm install`
 3. Build the plugin: `npm run build`
@@ -51,3 +59,31 @@ A plugin for the Cursor IDE that allows you to interact with your DeepSeek AI Ag
 ## Configuration
 
 You can modify the `index.ts` file to customize the plugin behavior: 
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"tsc is not recognized as an internal or external command"**
+   - This error occurs when TypeScript is not properly installed. Run `npm install` before running `npm run build`.
+
+2. **TypeScript compilation errors**
+   - If you see errors related to implicit 'any' types, make sure to add proper type annotations in the code.
+   - You can temporarily disable strict type checking in tsconfig.json by setting `"strict": false`.
+
+3. **API Connection Issues**
+   - Verify that your DeepSeek Agent API is running and accessible.
+   - Check the API endpoint configuration in the plugin.
+   - Ensure your network allows the connection to the specified API endpoint.
+
+4. **Plugin Not Appearing in Cursor**
+   - Make sure the plugin is correctly built (`npm run build`).
+   - Verify that the plugin directory is in the correct Cursor plugins folder.
+   - Restart Cursor after installing or updating the plugin.
+
+5. **Axios Request Errors**
+   - Check the DeepSeek Agent API logs for server-side errors.
+   - Verify that the API is properly processing and returning responses.
+   - Ensure CORS is configured correctly on the API server.
+
+For additional help, please check the main DeepSeek Agent repository or submit an issue. 
