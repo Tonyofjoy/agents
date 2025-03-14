@@ -1,48 +1,49 @@
+from http.server import BaseHTTPRequestHandler
 import json
 import uuid
 
-def handler(request, response):
-    # Set CORS headers
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    
-    # Handle preflight OPTIONS request
-    if request.method == "OPTIONS":
-        return response
-    
-    # Handle POST request for chat
-    if request.method == "POST":
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        
+        # Get request body
+        content_length = int(self.headers.get('Content-Length', 0))
+        request_body = self.rfile.read(content_length).decode('utf-8')
+        
         try:
-            # Get request body
-            body = request.json()
-            prompt = body.get("prompt", "")
-            session_id = body.get("session_id") or str(uuid.uuid4())
-            
+            # Parse JSON body
+            if request_body:
+                body = json.loads(request_body)
+                prompt = body.get("prompt", "")
+                session_id = body.get("session_id") or str(uuid.uuid4())
+            else:
+                prompt = "Empty request"
+                session_id = str(uuid.uuid4())
+                
             # Create response
-            data = {
+            response = {
                 "response": f"This is a simple response to: '{prompt}'",
                 "session_id": session_id,
                 "tool_calls": [],
                 "request_id": f"req_{uuid.uuid4().hex[:10]}"
             }
             
-            # Send response
-            response.status_code = 200
-            response.content_type = "application/json"
-            return response.send(json.dumps(data))
+            self.wfile.write(json.dumps(response).encode())
             
         except Exception as e:
             # Handle errors
-            response.status_code = 500
-            return response.send(json.dumps({
+            error_response = {
                 "status": "error",
                 "message": str(e)
-            }))
+            }
+            self.wfile.write(json.dumps(error_response).encode())
     
-    # Method not allowed
-    response.status_code = 405
-    return response.send(json.dumps({
-        "status": "error",
-        "message": f"Method {request.method} not allowed"
-    })) 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers() 
