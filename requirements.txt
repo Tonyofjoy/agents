@@ -11,6 +11,4 @@ langchain-core==0.1.16
 langchain-openai==0.0.2
 pytest==7.4.2
 tenacity==8.2.3
-starlette==0.27.0
-typing-extensions==4.7.1
-asyncio==3.4.3 
+typing-extensions==4.7.1 
