@@ -2,12 +2,16 @@
 import fetch from 'node-fetch';
 
 // DeepSeek API configuration
-// IMPORTANT: This hardcoded key doesn't work - use environment variable instead
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY; 
 const DEEPSEEK_API_BASE = process.env.DEEPSEEK_API_BASE || 'https://api.deepseek.com/v1';
 
-// Set a reasonable timeout - Vercel has a 10s limit for Hobby plans
-const API_TIMEOUT = 9500; // 9.5 seconds (just under Vercel's limit)
+// Set timeouts - Vercel has a 10s limit for Hobby plans, but we'll set a buffer
+const API_TIMEOUT = 8000; // 8 seconds total timeout
+const API_BUFFER = 1000; // 1 second buffer for processing
+
+// Define models for different scenarios to optimize performance
+const FAST_MODEL = 'deepseek-chat';
+const FALLBACK_MODEL = 'deepseek-chat';
 
 // Fallback responses when DeepSeek is unavailable
 const FALLBACK_RESPONSES = [
@@ -28,12 +32,11 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   
-  // Log request information for debugging
-  console.log(`Received ${req.method} request to ${req.url}`);
+  // Detailed logging for request debugging
+  console.log(`[${new Date().toISOString()}] Received ${req.method} request to ${req.url}`);
   
-  // Handle GET request to root endpoint
+  // Handle GET request to root endpoint (status check)
   if (req.method === 'GET') {
-    // Check if DeepSeek API is configured
     const isDeepSeekConfigured = !!DEEPSEEK_API_KEY;
     
     return res.status(200).json({
@@ -42,13 +45,14 @@ export default async function handler(req, res) {
       environment: process.env.VERCEL_ENV || 'development',
       deepseek_connected: isDeepSeekConfigured,
       deepseek_api_key_configured: isDeepSeekConfigured,
-      version: '1.0.3',
+      version: '1.0.4',
       timestamp: Date.now()
     });
   }
   
   // Handle POST request to chat endpoint
   if (req.method === 'POST' && req.url.includes('/api/chat')) {
+    let startTime = Date.now();
     try {
       // Parse body - handle both string and parsed JSON
       let body = req.body;
@@ -56,171 +60,134 @@ export default async function handler(req, res) {
         try {
           body = JSON.parse(req.body);
         } catch (e) {
-          console.error('Error parsing request body:', e);
+          console.error('[ERROR] Parsing request body:', e);
+          return res.status(400).json({ error: 'Invalid JSON in request body' });
         }
       }
       
-      // Log the received body for debugging
-      console.log('Received request body:', JSON.stringify(body, null, 2));
-      
+      // Generate IDs for session and request
       const sessionId = body?.session_id || `session-${Math.random().toString(36).substring(2, 15)}`;
-      const prompt = body?.prompt || '';
       const requestId = `req_${Math.random().toString(36).substring(2, 15)}`;
+      const prompt = body?.prompt || '';
       
-      // Quick response for short prompts
-      if (prompt.length < 5) {
+      console.log(`[${requestId}] Processing request for session ${sessionId}`);
+      console.log(`[${requestId}] Time elapsed: ${Date.now() - startTime}ms`);
+      
+      // Very quick response for empty prompts
+      if (!prompt || prompt.length < 5) {
+        console.log(`[${requestId}] Empty prompt detected, returning quick response`);
         return res.status(200).json({
-          response: "I'd be happy to help! Please provide more details about what you'd like to discuss or create.",
+          response: "I'd be happy to help! Please provide more details about what you'd like to discuss.",
           session_id: sessionId,
-          tool_calls: [],
           request_id: requestId
         });
       }
       
-      // Check if DeepSeek API is configured
+      // Check for DeepSeek API key
       if (!DEEPSEEK_API_KEY) {
-        console.log('DeepSeek API key not configured. Using fallback response.');
-        return res.status(200).json({
-          response: generateFallbackResponse(prompt),
+        console.error('[ERROR] DeepSeek API key not configured');
+        return res.status(503).json({
+          error: 'AI service unavailable - missing API key',
           session_id: sessionId,
-          tool_calls: [],
-          request_id: requestId,
-          using_deepseek: false,
-          error: "DeepSeek API key not configured"
+          request_id: requestId
         });
       }
       
-      // Determine if this is a content template request
-      const isTemplateRequest = prompt.toLowerCase().includes('generate a') && prompt.toLowerCase().includes('about');
+      // Create optimized system prompt - extremely short to reduce token usage
+      const systemPrompt = "You're Tony Tech Insights' AI assistant. Provide concise, practical tech advice for businesses.";
       
-      // Create system prompt based on request type - keep it concise to reduce token usage
-      let systemPrompt;
-      if (isTemplateRequest) {
-        systemPrompt = `You are Tony Tech Insights' content creator. Create ${prompt.includes('short') ? 'concise' : 'detailed'} content that is professional, accessible, and aligned with our brand promise: "Making Technology Accessible for Every Business". Focus on practical business value.`;
-      } else {
-        systemPrompt = `You are Tony Tech Insights' AI assistant. Provide concise, practical tech advice for businesses. Align with our brand: "Making Technology Accessible for Every Business".`;
-      }
+      console.log(`[${requestId}] Calling DeepSeek API with timeout ${API_TIMEOUT}ms`);
       
-      console.log('Starting API call to DeepSeek...');
+      // Make the DeepSeek API call with strict timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.error(`[${requestId}] DeepSeek API call timed out after ${API_TIMEOUT}ms`);
+      }, API_TIMEOUT);
       
       try {
-        // Try to call DeepSeek with a shorter timeout than Vercel's limit
-        const response = await callDeepSeekAPI(prompt, systemPrompt);
-        console.log('API call completed successfully');
+        // Setup for a very lightweight API call
+        const payload = {
+          model: FAST_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 250, // Very limited token count for speed
+          stream: false // Do not use streaming as it can be slower to init
+        };
         
-        return res.status(200).json({
-          response: response,
-          session_id: sessionId,
-          tool_calls: [],
-          request_id: requestId,
-          using_deepseek: true
+        console.log(`[${requestId}] DeepSeek API payload size: ${JSON.stringify(payload).length} bytes`);
+        console.log(`[${requestId}] Time elapsed before API call: ${Date.now() - startTime}ms`);
+        
+        const apiCallStart = Date.now();
+        const response = await fetch(`${DEEPSEEK_API_BASE}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+          timeout: API_TIMEOUT - API_BUFFER // Leave buffer for processing
         });
-      } catch (deepseekError) {
-        console.error('DeepSeek API error:', deepseekError);
         
-        // Use fallback response but still return 200 status
+        const apiCallEnd = Date.now();
+        console.log(`[${requestId}] DeepSeek API call completed in ${apiCallEnd - apiCallStart}ms`);
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[${requestId}] DeepSeek API error (${response.status}): ${errorText}`);
+          throw new Error(`DeepSeek API error: ${response.status} - ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`[${requestId}] Received DeepSeek response, parsing completed`);
+        console.log(`[${requestId}] Total time elapsed: ${Date.now() - startTime}ms`);
+        
+        // Get the response content and return it
+        const responseContent = data.choices[0].message.content;
+        
         return res.status(200).json({
-          response: generateFallbackResponse(prompt),
+          response: responseContent,
           session_id: sessionId,
-          tool_calls: [],
           request_id: requestId,
-          using_deepseek: false,
-          error: deepseekError.message
+          elapsed_ms: Date.now() - startTime,
+          tokens: data.usage?.total_tokens || 0
+        });
+        
+      } catch (apiError) {
+        clearTimeout(timeoutId);
+        console.error(`[${requestId}] API call error: ${apiError.message}`);
+        
+        // Return proper error status instead of a fake success
+        return res.status(503).json({
+          error: `AI service error: ${apiError.message}`,
+          session_id: sessionId,
+          request_id: requestId
         });
       }
       
     } catch (error) {
-      console.error('Error processing chat request:', error);
+      console.error(`[ERROR] Unhandled exception: ${error.stack || error.message}`);
       
-      // Always return 200 with a fallback response
-      return res.status(200).json({
-        response: generateFallbackResponse(req.body?.prompt || ''),
-        session_id: req.body?.session_id || `session-${Math.random().toString(36).substring(2, 15)}`,
-        tool_calls: [],
-        request_id: `req_${Math.random().toString(36).substring(2, 15)}`,
-        error: error.message || 'An error occurred while processing your request',
-        using_deepseek: false
+      // Return error with appropriate status
+      return res.status(500).json({
+        error: `Server error: ${error.message}`,
+        elapsed_ms: Date.now() - startTime
       });
     }
   }
   
   // Handle unknown routes
   return res.status(404).json({
-    status: 'error',
-    message: 'Endpoint not found'
+    error: 'Endpoint not found',
+    url: req.url,
+    method: req.method
   });
-}
-
-// Call DeepSeek API to generate a response
-async function callDeepSeekAPI(prompt, systemPrompt) {
-  if (!DEEPSEEK_API_KEY) {
-    throw new Error('DeepSeek API key not configured');
-  }
-  
-  // Vietnamese content detection - optimize settings for Vietnamese
-  const isVietnamese = 
-    prompt.includes('tiếng Việt') || 
-    prompt.includes('Vietnamese') ||
-    /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/.test(prompt);
-  
-  // Optimize settings for fast responses
-  const settings = {
-    model: 'deepseek-chat',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.7,
-    max_tokens: isVietnamese ? 800 : 500, // Shorter limits to ensure response within timeout
-    timeout: API_TIMEOUT - 1000
-  };
-  
-  console.log('Calling DeepSeek API with settings:', JSON.stringify(settings));
-  
-  // Call DeepSeek API with abortable controller
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), API_TIMEOUT - 2000);
-  
-  try {
-    const response = await fetch(`${DEEPSEEK_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-      },
-      body: JSON.stringify(settings),
-      signal: controller.signal
-    });
-    
-    clearTimeout(id);
-    
-    // Log the raw response 
-    console.log(`DeepSeek API response status: ${response.status}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`DeepSeek API error response: ${errorText}`);
-      
-      // Parse the error data if possible
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {
-        errorData = { error: { message: `Status ${response.status}: ${errorText}` } };
-      }
-      
-      throw new Error(`DeepSeek API error: ${errorData.error?.message || response.statusText}`);
-    }
-    
-    const data = await response.json();
-    console.log('DeepSeek API response:', JSON.stringify(data, null, 2));
-    
-    return data.choices[0].message.content;
-    
-  } catch (error) {
-    console.error(`DeepSeek API call failed:`, error);
-    throw error;
-  }
 }
 
 // Generate a fallback response when DeepSeek is unavailable

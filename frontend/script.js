@@ -9,10 +9,14 @@ let currentRequestId = null; // Track the current request ID for cancellation
 let requestTimeoutId = null; // To track the timeout for long-running requests
 let isDeepSeekConnected = false; // Track if DeepSeek is connected
 
-// Timeouts - reduced to match backend limits
-const FETCH_TIMEOUT = 15000; // 15 seconds timeout for fetch requests
-const USER_FEEDBACK_TIMEOUT = 4000; // 4 seconds before showing first feedback message
-const LONG_WAIT_WARNING = 8000; // 8 seconds before showing serious wait warning
+// Timeouts - carefully tuned for optimal experiences
+const FETCH_TIMEOUT = 12000; // 12 seconds timeout for fetch requests
+const USER_FEEDBACK_TIMEOUT = 3000; // 3 seconds before showing first feedback message
+const LONG_WAIT_WARNING = 6000; // 6 seconds before showing serious wait warning
+
+// API retry settings
+const MAX_RETRIES = 1; // Maximum number of retries for failed API calls
+const RETRY_DELAY = 1000; // Delay between retries (1 second)
 
 // DOM Elements - Chat
 const chatHistory = document.getElementById('chat-history');
@@ -78,7 +82,7 @@ cancelTemplateButton.addEventListener('click', hideTemplateForm);
 // Functions - Core
 
 async function initApp() {
-    // Connect to API
+    // Connect to API and check its status
     await initChat();
     
     // Set initial language
@@ -88,10 +92,18 @@ async function initApp() {
 async function initChat() {
     try {
         console.log("Connecting to API at:", API_URL);
-        console.log("Initial session ID:", sessionId);
         
-        // Test connection to API
-        const response = await fetch(`${API_URL}`);
+        // Show connecting status
+        statusElement.textContent = 'Connecting...';
+        statusElement.classList.remove('connected', 'disconnected');
+        statusElement.classList.add('connecting');
+        
+        // Test connection to API with retry logic
+        const response = await fetchWithRetry(`${API_URL}`, {
+            method: 'GET',
+            timeout: 5000 // Short timeout for initial connection
+        });
+        
         console.log("API response status:", response.status);
         
         if (!response.ok) {
@@ -104,14 +116,14 @@ async function initChat() {
         if (data.status === 'ok') {
             statusElement.textContent = 'Connected';
             statusElement.classList.add('connected');
-            statusElement.classList.remove('disconnected');
+            statusElement.classList.remove('disconnected', 'connecting');
             
             // Check if DeepSeek is connected
             isDeepSeekConnected = data.deepseek_connected === true;
             
             if (!isDeepSeekConnected) {
-                console.warn("DeepSeek API is not configured. Using fallback responses.");
-                addMessage('system', `Note: The AI service is currently unavailable. I'll still try to help with basic responses, but for more detailed answers, please try again later.`);
+                console.warn("DeepSeek API is not configured.");
+                addMessage('system', `Note: Our AI service is currently experiencing high demand. Responses may take longer than usual. Thank you for your patience.`);
             }
             
             // Session ID is already initialized at the top
@@ -122,24 +134,40 @@ async function initChat() {
     } catch (error) {
         console.error('Error connecting to API:', error);
         statusElement.textContent = 'Disconnected';
-        statusElement.classList.remove('connected');
+        statusElement.classList.remove('connected', 'connecting');
         statusElement.classList.add('disconnected');
         
-        addMessage('system', `Error connecting to the Tony Tech Insights API. Make sure the server is running.`);
+        addMessage('system', `Error connecting to our AI service. Please refresh the page or try again later.`);
+    }
+}
+
+// Helper function for API calls with automatic retry
+async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
+    const { timeout = FETCH_TIMEOUT } = options;
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
         
-        // Add more detailed error information
-        console.log("API URL:", API_URL);
-        console.log("Window location:", window.location.href);
-        console.log("Will use fallback session ID:", sessionId);
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
         
-        // Try connecting to the base URL
-        try {
-            console.log("Attempting to connect to base URL:", window.location.origin);
-            const baseResponse = await fetch(window.location.origin);
-            console.log("Base URL response status:", baseResponse.status);
-        } catch (baseError) {
-            console.error("Error connecting to base URL:", baseError);
+        return response;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error(`Fetch timeout after ${timeout}ms:`, url);
+            throw new Error(`Request timed out after ${timeout}ms`);
         }
+        
+        if (retries > 0) {
+            console.log(`Retrying fetch (${retries} attempts left)...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            return fetchWithRetry(url, options, retries - 1);
+        }
+        
+        throw error;
     }
 }
 
@@ -210,15 +238,13 @@ async function sendMessage() {
         return;
     }
     
-    // Clear input
+    // Clear input and disable UI
     userInput.value = '';
+    isSending = true;
+    sendButton.disabled = true;
     
     // Add user message to chat
     addMessage('user', messageText);
-    
-    // Disable send button
-    isSending = true;
-    sendButton.disabled = true;
     
     // Add typing indicator
     const typingMessage = addTypingIndicator();
@@ -227,18 +253,15 @@ async function sendMessage() {
     const cancelButton = addCancelButton();
     cancelButton.addEventListener('click', handleRequestCancel);
     
-    // Set up request timeout monitoring with shorter timeouts
-    setupRequestTimeout(30000); // 30 seconds max timeout
+    // Set up request timeout monitoring with appropriate timeouts
+    setupRequestTimeout();
     
     try {
         console.log("Sending message to API:", messageText);
-        console.log("API URL for chat:", `${API_URL}/chat`);
-        console.log("Session ID:", sessionId);
         
         // Ensure session ID is set
         if (!sessionId) {
             sessionId = generateSessionId();
-            console.log("Generated new session ID:", sessionId);
         }
         
         // Prepare request payload
@@ -247,22 +270,15 @@ async function sendMessage() {
             session_id: sessionId
         };
         
-        console.log("Request payload:", payload);
-        
-        // Send request to API with a reasonable timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-        
-        const response = await fetch(`${API_URL}/chat`, {
+        // Send request to API with retry capability
+        const response = await fetchWithRetry(`${API_URL}/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),
-            signal: controller.signal
-        }).finally(() => clearTimeout(timeoutId));
-        
-        console.log("Response status:", response.status);
+            timeout: FETCH_TIMEOUT
+        });
         
         // Remove typing indicator and cancel button
         typingMessage.remove();
@@ -271,86 +287,83 @@ async function sendMessage() {
         // Clear request timeout
         clearRequestTimeout();
         
-        // Get the response text first, regardless of status code
-        const responseText = await response.text();
-        console.log("Raw response:", responseText);
+        console.log("Response status:", response.status);
         
-        // Then check if the response was ok
-        if (!response.ok) {
-            console.error(`API error ${response.status}: ${responseText}`);
-            
-            // Parse the error if possible
-            let errorData;
-            try {
-                errorData = JSON.parse(responseText);
-            } catch (e) {
-                errorData = { error: `Status ${response.status}: ${responseText}` };
-            }
-            
-            // Display a user-friendly error message
+        // Handle different response status codes
+        if (response.status === 503) {
+            // Service unavailable - DeepSeek API is down
             addMessage('system', currentLanguage === 'en' ? 
-                `Sorry, there was a problem with the chat service. Please try again in a moment.` : 
-                `Xin lỗi, đã xảy ra sự cố với dịch vụ trò chuyện. Vui lòng thử lại sau một lát.`);
-            
-            throw new Error(`API error: ${response.status} - ${responseText.substring(0, 100)}`);
+                `Our AI service is currently experiencing high demand. Please try again in a few moments.` : 
+                `Dịch vụ AI của chúng tôi hiện đang có lượng truy cập cao. Vui lòng thử lại sau vài phút.`);
+            return;
+        } else if (response.status === 504) {
+            // Gateway timeout - Vercel function timed out
+            addMessage('system', currentLanguage === 'en' ? 
+                `Request timed out. Our AI service is taking longer than expected. Please try a shorter message or try again later.` : 
+                `Yêu cầu đã hết thời gian chờ. Dịch vụ AI của chúng tôi đang mất nhiều thời gian hơn dự kiến. Vui lòng thử một tin nhắn ngắn hơn.`);
+            return;
+        } else if (!response.ok) {
+            // Get error details
+            const errorText = await response.text();
+            throw new Error(`API error: ${response.status} - ${errorText.substring(0, 100)}`);
         }
         
+        // Parse the response
         let data;
         try {
+            const responseText = await response.text();
             data = JSON.parse(responseText);
         } catch (e) {
             console.error("Error parsing JSON response:", e);
-            console.error("Raw response that couldn't be parsed:", responseText);
-            addMessage('system', 'Error: The server returned an invalid response. Please try again later.');
-            throw new Error(`Invalid JSON response from server: ${responseText.substring(0, 100)}`);
+            throw new Error(`Invalid response from server`);
         }
         
         console.log("Parsed response data:", data);
         
-        // Check if using fallback response
-        if (data.using_deepseek === false && !isDeepSeekConnected) {
-            // Only show the message once per session
-            if (!sessionStorage.getItem('fallback_notified')) {
-                addMessage('system', currentLanguage === 'en' ? 
-                    `Note: I'm currently working with limited capabilities. For more detailed responses, please check back later.` : 
-                    `Lưu ý: Tôi hiện đang làm việc với khả năng hạn chế. Để có phản hồi chi tiết hơn, vui lòng quay lại sau.`);
-                sessionStorage.setItem('fallback_notified', 'true');
-            }
+        // Update session ID and current request ID
+        if (data.session_id) {
+            sessionId = data.session_id;
         }
         
-        // Update session ID and current request ID
-        sessionId = data.session_id;
-        currentRequestId = data.request_id;
+        if (data.request_id) {
+            currentRequestId = data.request_id;
+        }
+        
+        // Add performance info if available
+        if (data.elapsed_ms) {
+            console.log(`Response generated in ${data.elapsed_ms}ms using ${data.tokens || 'unknown'} tokens`);
+        }
         
         // Add agent response to chat
-        addMessage('agent', data.response);
-        
-        // Show tool calls if any
-        if (data.tool_calls && data.tool_calls.length > 0) {
-            showToolCalls(data.tool_calls);
-        } else {
-            toolContainer.classList.add('hidden');
-        }
+        addMessage('agent', data.response || data.error || 'Sorry, I couldn\'t generate a response.');
         
     } catch (error) {
         console.error('Error sending message:', error);
         
         // Handle abort/timeout errors specifically
-        if (error.name === 'AbortError') {
+        if (error.name === 'AbortError' || error.message.includes('timed out')) {
             addMessage('system', currentLanguage === 'en' ? 
-                'The request was cancelled because it took too long. Please try again in a moment.' : 
-                'Yêu cầu đã bị hủy vì mất quá nhiều thời gian. Vui lòng thử lại sau một lát.');
+                'The request timed out. Please try a shorter message or try again later.' : 
+                'Yêu cầu đã hết thời gian chờ. Vui lòng thử với tin nhắn ngắn hơn hoặc thử lại sau.');
         } else {
             // Handle other errors
-            addMessage('error', `Error: ${error.message}`);
+            addMessage('system', currentLanguage === 'en' ? 
+                `I'm having trouble connecting right now. Please try again in a moment.` : 
+                `Tôi đang gặp sự cố kết nối. Vui lòng thử lại sau một lát.`);
+        }
+        
+    } finally {
+        // Always clean up
+        isSending = false;
+        sendButton.disabled = false;
+        currentRequestId = null;
+        
+        if (typingMessage && typingMessage.parentNode) {
+            typingMessage.remove();
         }
         
         removeCancelButton();
         clearRequestTimeout();
-    } finally {
-        isSending = false;
-        sendButton.disabled = false;
-        currentRequestId = null;
         scrollToBottom();
     }
 }
@@ -420,44 +433,28 @@ function removeCancelButton() {
     }
 }
 
-function setupRequestTimeout(timeoutMs) {
+function setupRequestTimeout() {
     // Clear any existing timeout
     clearRequestTimeout();
     
-    // Set a short timeout for first warning - reduced to accommodate shorter backend timeout
+    // Set up staged user feedback for long-running requests
     requestTimeoutId = setTimeout(() => {
-        if (isSending && currentRequestId) {
-            // Add a message to let the user know the request is taking a while
-            const timeoutWarning = document.createElement('div');
-            timeoutWarning.classList.add('timeout-warning');
-            timeoutWarning.id = 'timeout-warning';
-            timeoutWarning.textContent = currentLanguage === 'en' ? 
-                'Working on your response...' : 
-                'Đang xử lý phản hồi của bạn...';
+        // First feedback after USER_FEEDBACK_TIMEOUT
+        const statusMsg = addMessage('system', currentLanguage === 'en' ? 
+            'This may take a moment...' : 
+            'Điều này có thể mất một chút thời gian...');
             
-            // Add to the chat just before the typing indicator
-            const typingIndicator = document.querySelector('.typing-indicator');
-            if (typingIndicator && typingIndicator.parentElement) {
-                typingIndicator.parentElement.insertBefore(timeoutWarning, typingIndicator);
-            }
+        // Second feedback after LONG_WAIT_WARNING
+        requestTimeoutId = setTimeout(() => {
+            statusMsg.remove(); // Remove the first message
             
-            // Set a longer timeout for follow-up warning
-            setTimeout(() => {
-                if (isSending && currentRequestId) {
-                    // Update the warning
-                    const existingWarning = document.getElementById('timeout-warning');
-                    if (existingWarning) {
-                        existingWarning.textContent = currentLanguage === 'en' ? 
-                            'This is taking longer than expected. You can cancel and try again if needed.' : 
-                            'Việc này đang mất nhiều thời gian hơn dự kiến. Bạn có thể hủy và thử lại nếu cần.';
-                        existingWarning.style.backgroundColor = '#fff8e1';
-                        existingWarning.style.color = '#856404';
-                        existingWarning.style.borderColor = '#ffeeba';
-                    }
-                }
-            }, LONG_WAIT_WARNING - USER_FEEDBACK_TIMEOUT); // Show second warning after 8 seconds total
-        }
-    }, USER_FEEDBACK_TIMEOUT); // Show first message after 4 seconds
+            addMessage('system', currentLanguage === 'en' ? 
+                'Our AI service is thinking... thanks for your patience.' : 
+                'Dịch vụ AI của chúng tôi đang suy nghĩ... cảm ơn sự kiên nhẫn của bạn.');
+                
+        }, LONG_WAIT_WARNING - USER_FEEDBACK_TIMEOUT);
+        
+    }, USER_FEEDBACK_TIMEOUT);
 }
 
 function clearRequestTimeout() {
@@ -465,10 +462,6 @@ function clearRequestTimeout() {
         clearTimeout(requestTimeoutId);
         requestTimeoutId = null;
     }
-    
-    // Remove any timeout warning messages
-    const timeoutWarnings = document.querySelectorAll('.timeout-warning');
-    timeoutWarnings.forEach(warning => warning.remove());
 }
 
 function showToolCalls(toolCalls) {
@@ -768,73 +761,26 @@ setTimeout(() => {
 }, 1000);
 
 async function handleRequestCancel() {
-    if (!currentRequestId) {
-        return;
-    }
+    // User canceled the request
+    clearRequestTimeout();
     
-    try {
-        statusElement.textContent = currentLanguage === 'en' ? 'Cancelling...' : 'Đang hủy...';
-        
-        // Disable the cancel button while cancellation is processing
-        const cancelButton = document.getElementById('cancel-request-button');
-        if (cancelButton) {
-            cancelButton.disabled = true;
-            cancelButton.textContent = currentLanguage === 'en' ? 'Cancelling...' : 'Đang hủy...';
+    // Mark as no longer sending
+    isSending = false;
+    sendButton.disabled = false;
+    
+    // Remove typing indicator
+    const typingIndicators = document.querySelectorAll('.typing-indicator');
+    typingIndicators.forEach(indicator => {
+        if (indicator.parentNode && indicator.parentNode.classList.contains('message')) {
+            indicator.parentNode.remove();
         }
-        
-        const response = await fetch(`${API_URL}/cancel`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                request_id: currentRequestId
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            console.log(`Request cancelled: ${currentRequestId}`);
-            statusElement.textContent = currentLanguage === 'en' ? 'Connected' : 'Đã kết nối';
-            
-            // Remove typing indicator
-            const typingIndicator = document.querySelector('.typing-indicator');
-            if (typingIndicator) {
-                typingIndicator.parentElement.remove();
-            }
-            
-            // Add cancellation message
-            addMessage('system', currentLanguage === 'en' ? 
-                'Request cancelled. You can continue the conversation.' : 
-                'Yêu cầu đã bị hủy. Bạn có thể tiếp tục cuộc trò chuyện.');
-        } else {
-            console.error(`Failed to cancel request: ${data.message}`);
-            // If cancellation fails but the request was already done
-            if (data.message.includes("already completed")) {
-                // The request might have completed while we were trying to cancel
-                statusElement.textContent = currentLanguage === 'en' ? 'Connected' : 'Đã kết nối';
-            } else {
-                // Some other error occurred
-                addMessage('error', currentLanguage === 'en' ? 
-                    `Failed to cancel request: ${data.message}` : 
-                    `Không thể hủy yêu cầu: ${data.message}`);
-            }
-        }
-    } catch (error) {
-        console.error('Error cancelling request:', error);
-        addMessage('error', currentLanguage === 'en' ? 
-            `Error cancelling request: ${error.message}` : 
-            `Lỗi khi hủy yêu cầu: ${error.message}`);
-    } finally {
-        removeCancelButton();
-        clearRequestTimeout();
-        isSending = false;
-        sendButton.disabled = false;
-        currentRequestId = null;
-    }
+    });
+    
+    // Remove cancel button
+    removeCancelButton();
+    
+    // Show cancellation message
+    addMessage('system', currentLanguage === 'en' ? 
+        'Request canceled.' : 
+        'Yêu cầu đã bị hủy.');
 } 
